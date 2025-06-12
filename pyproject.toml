@@ -1,0 +1,22 @@
+[project]
+name = "BayesAdapt"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "accelerate>=1.6.0",
+    "asdfghjkl>=0.1a5",
+    "bitsandbytes>=0.45.5",
+    "datasets>=3.6.0",
+    "evaluate>=0.4.3",
+    "ipdb>=0.13.13",
+    "numpy>=2.2.5",
+    "peft>=0.15.2",
+    "scikit-learn>=1.7.0",
+    "setproctitle>=1.3.6",
+    "torch>=2.7.0",
+    "torchmetrics>=1.7.1",
+    "transformers>=4.51.3",
+    "wandb>=0.19.11",
+]
