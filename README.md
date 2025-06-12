@@ -1,5 +1,5 @@
 # BayesAdapt
-This repo contains the code for the Bayesian adaptation of LLMs.
+BayesAdapt is a library for the Bayesian adaptation of LLMs.
 
 It acts as the official repo for:
 
@@ -17,6 +17,8 @@ BayesAdapt uses uv to manage requirements. Start by installing uv as described b
 
 Clone the code by running: ```git clone https://github.com/SRI-CSL/BayesAdapt.git```
 
-Inside the ```BayesAdapt``` directory run ```uv init``` to build the enviroment.
+Inside the ```BayesAdapt``` directory run ```uv init``` to build the environment.
 
-Then run ```source .venv/bin/activate``` to load the enviroment.
+Then run ```source .venv/bin/activate``` to load the environment.
+
+To use wandb, make sure the environment variable ```WANDB_ENTITY``` is set to your full wandb username.
