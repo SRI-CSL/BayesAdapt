@@ -7,8 +7,7 @@ gamma=8
 lora_r=8
 lora_alpha=$(echo $lora_r*2 | bc)
 
-#for dataset in winogrande_s ARC-Challenge ARC-Easy winogrande_m obqa boolq; do
-for dataset in winogrande_s; do
+for dataset in winogrande_s ARC-Challenge ARC-Easy winogrande_m obqa boolq; do
     for sample in 10; do
         for gpuid_seed in "0 0"; do
             read gpuid seed <<< "$gpuid_seed"
