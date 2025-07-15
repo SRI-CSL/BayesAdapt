@@ -1,19 +1,11 @@
 # BayesAdapt
 BayesAdapt is a library for the Bayesian adaptation of LLMs.
 
-It acts as the official repo for:
-
-**Scalable Bayesian Low-Rank Adaptation of Large Language Models via Stochastic Variational Subspace Inference**
-
-Colin Samplawski, Adam D. Cobb, Manoj Acharya, Ramneet Kaur, Susmit Jha 
-
-*Conference on Uncertainty in Artificial Intelligence, 2025*
-
+It also acts as the official repo for:<br>
+**Scalable Bayesian Low-Rank Adaptation of Large Language Models via Stochastic Variational Subspace Inference**<br>
+Colin Samplawski, Adam D. Cobb, Manoj Acharya, Ramneet Kaur, Susmit Jha <br>
+*Conference on Uncertainty in Artificial Intelligence, 2025*<br>
 [[📄 Paper](https://www.arxiv.org/abs/2506.21408)] [[🌐 OpenReview](https://openreview.net/forum?id=neqGuhC3zS)]
-
-## 📖 Table of Contents
-1. [⚙️ Installation](#installation)
-2. [🚀 Running the Code](#running-the-code)
 
 ## ⚙️ Installation
 BayesAdapt uses uv to manage requirements. Start by installing uv as described by the [official documentation](https://docs.astral.sh/uv/getting-started/installation).
