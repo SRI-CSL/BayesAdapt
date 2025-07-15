@@ -1,5 +1,4 @@
 modelwrapper=blob
-#model=meta-llama/Llama-2-7b-hf
 model=Qwen/Qwen2.5-7B
 eps=0.05
 beta=0.2
@@ -9,7 +8,7 @@ gamma=8
 ori_dataset=obqa
 
 for sample in 10; do
-    for gpuid_seed in "1 4"; do
+    for gpuid_seed in "0 0"; do
         read gpuid seed <<< "$gpuid_seed"
         name=$modelwrapper-$ori_dataset-eps$eps-kllr$kllr-beta$beta-gamma$gamma-seed$seed-ood
         CUDA_VISIBLE_DEVICES=$gpuid python run/main.py --dataset-type mcdataset --dataset $ori_dataset \
@@ -18,7 +17,7 @@ for sample in 10; do
             --opt adamw --warmup-ratio 0.06 \
             --max-seq-len 300 \
             --seed $seed \
-            --wandb-name $name --wandb-project "BLoB-qwen7B-ood-all" \
+            --wandb-name $name --wandb-project "BLoB-qwen7B-ood" \
             --apply-classhead-lora --lora-r 8 --lora-alpha 16 --lora-dropout 0 \
             --log-path $name \
             --max-train-steps 5000 \
@@ -26,15 +25,13 @@ for sample in 10; do
             --bayes-klreweighting \
             --bayes-eps $eps --bayes-beta $beta --bayes-gamma $gamma --bayes-kllr $kllr \
             --bayes-train-n-samples 1 --bayes-eval-n-samples $sample --bayes-eval-n-samples-final $sample \
-            --checkpoint --checkpoint-name $name \
-            & #run in background
+            --checkpoint --checkpoint-name $name 
     done
-    wait #for all seeds to finish
 done
 
 for dataset in ARC-Challenge ARC-Easy MMLU-chem MMLU-phy; do
     for sample in 10; do
-        for gpuid_seed in "1 4"; do
+        for gpuid_seed in "0 0"; do
             read gpuid seed <<< "$gpuid_seed"
             name=$modelwrapper-$dataset-sample$sample-eps$eps-kllr$kllr-beta$beta-gamma$gamma-seed$seed-ood
             CUDA_VISIBLE_DEVICES=$gpuid python run/main.py --dataset-type mcdataset --dataset $dataset \
@@ -43,7 +40,7 @@ for dataset in ARC-Challenge ARC-Easy MMLU-chem MMLU-phy; do
                 --opt adamw --warmup-ratio 0.06 \
                 --max-seq-len 300 \
                 --seed $seed \
-                --wandb-name $name --wandb-project "BLoB-qwen7B-ood-all" \
+                --wandb-name $name --wandb-project "BLoB-qwen7B-ood" \
                 --apply-classhead-lora --lora-r 8 --lora-alpha 16 --lora-dropout 0 \
                 --log-path $name \
                 --max-train-steps 0 \
@@ -51,9 +48,7 @@ for dataset in ARC-Challenge ARC-Easy MMLU-chem MMLU-phy; do
                 --bayes-klreweighting \
                 --bayes-eps $eps --bayes-beta $beta --bayes-gamma $gamma --bayes-kllr $kllr --bayes-datasetrescaling \
                 --bayes-train-n-samples 1 --bayes-eval-n-samples $sample --bayes-eval-n-samples-final $sample \
-                --load-lora-path checkpoints/$modelwrapper/$model/$ori_dataset/$modelwrapper-$ori_dataset-eps$eps-kllr$kllr-beta$beta-gamma$gamma-seed$seed-ood \
-                &
+                --load-lora-path checkpoints/$modelwrapper/$model/$ori_dataset/$modelwrapper-$ori_dataset-eps$eps-kllr$kllr-beta$beta-gamma$gamma-seed$seed-ood 
         done 
-        wait
     done
 done
