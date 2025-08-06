@@ -15,10 +15,6 @@ from transformers import PreTrainedModel
 
 from peft.config import PeftConfig
 from peft.tuners.lora import LoraLayer, Linear
-from peft.tuners.lora.bnb import Linear8bitLt
-# from loraxs.initialization_utils import compute_svd
-from peft.utils.integrations import dequantize_bnb_weight
-import bitsandbytes as bnb
 from scalabl_layers import ScalaBLLinear
 
 ## Model Specific Argument Parsing
@@ -79,12 +75,7 @@ def blob_linear_forward(self, x: torch.Tensor, *args: Any, **kwargs: Any):
         lora_A = self.lora_A[active_adapter]
         lora_B = self.lora_B[active_adapter]
 
-
         result += lora_A(x, lora_B, scaling)
-
-
-        # if self.blobsample:
-            # result += lora_B(lora_A.forward_noise(x)) * scaling
 
     result = result.to(previous_dtype)
     return result
@@ -146,7 +137,6 @@ class ScalaBL(WrapperBase):
                     for n, p in self.named_parameters()
                     if not any(nd in n for nd in no_decay) 
                 ],
-                # set weight_decay
                 "weight_decay": args.opt_wd,
             },
             {
@@ -196,28 +186,11 @@ class ScalaBL(WrapperBase):
         for name, child in tqdm(module.named_children(), desc="Modifying Lora Layers"):
             if isinstance(child, LoraLayer) and isinstance(child, Linear):
                 self._wrap_lora_layer(child)
-                # modify existing methods
                 setattr(
                     child,
                     "forward",
                     blob_linear_forward.__get__(child, child.__class__),
                 )
-                # add new methods
-                setattr(
-                    child,
-                    "div_posterior_prior",
-                    div_posterior_prior.__get__(child, child.__class__),
-                )
-                setattr(child, "sample", sample.__get__(child, child.__class__))
-            if isinstance(child, LoraLayer) and isinstance(child, Linear8bitLt):
-                self._wrap_lora_layer(child)
-                # modify existing methods
-                setattr(
-                    child,
-                    "forward",
-                    blob_linear_forward.__get__(child, child.__class__),
-                )
-                # add new methods
                 setattr(
                     child,
                     "div_posterior_prior",
@@ -228,20 +201,10 @@ class ScalaBL(WrapperBase):
                 self._modify_lora_layers(child)
 
     def _wrap_lora_layer(self, lora_layer):
-        # lora_layer.lora_A_rho = nn.ParameterDict({})
-        # lora_layer.svd = nn.ParameterDict({})
         lora_layer.bayes_eps = self.blobconfig.bayes_eps
         lora_layer.bayes_gamma = self.blobconfig.bayes_gamma
         lora_layer.bayes_beta = self.blobconfig.bayes_beta
         lora_layer.blobsample = True
-        # rank = lora_layer.r['default']
-
-
-        # base_weight = lora_layer.base_layer.weight
-        # if isinstance(lora_layer, Linear8bitLt):
-            # base_weight = dequantize_bnb_weight(base_weight, lora_layer.base_layer.state)
-            # base_weight = base_weight.to(torch.float32)
-
         del lora_layer.lora_A['default'].weight
         
         lora_layer.lora_A['default'] = ScalaBLLinear(
@@ -251,41 +214,11 @@ class ScalaBL(WrapperBase):
             blobsample=True,
         )
 
-        # A_weight = lora_layer.lora_A['default'].weight
-        # U, s, Vh = torch.linalg.svd(A_weight.detach(), full_matrices=True)
-
-        # lora_layer.lora_A['default'].svd = nn.ParameterDict({})
-        # lora_layer.lora_A['default'].svd['U'] = nn.Parameter(U, requires_grad=True)
-        # lora_layer.lora_A['default'].svd['s'] = nn.Parameter(torch.log(s), requires_grad=True)
-        # lora_layer.lora_A['default'].svd['Vh'] = nn.Parameter(Vh, requires_grad=True)
-        
-        # lora_layer.lora_A['default'].register_buffer("s_prior_mu", s)
-        
-        # lora_layer.lora_A['default'].s_rho = nn.Parameter(
-            # s.new_zeros(s.size()),
-            # requires_grad=True,
-        # )
-
-        # if lora_layer.bayes_eps < 0:
-            # nn.init.uniform_(
-                # lora_layer.lora_A['default'].s_rho,
-                # lora_layer.bayes_eps - 1,
-                # lora_layer.bayes_eps,
-            # )
-        # else:
-            # nn.init.uniform_(
-                # lora_layer.lora_A['default'].s_rho,
-                # lora_layer.bayes_eps / math.sqrt(2),
-                # lora_layer.bayes_eps,
-            # )
-            # lora_layer.lora_A['default'].s_rho.data = lora_layer.lora_A['default'].s_rho.data.log()
-        
     def div_posterior_prior(self, module):
         kl = 0
         for name, child in module.named_children():
             if isinstance(child, LoraLayer):
                 kl_ = child.div_posterior_prior()
-                # if not math.isnan(kl_):
                 kl += kl_
             else:
                 kl += self.div_posterior_prior(child)
@@ -354,11 +287,9 @@ class ScalaBL(WrapperBase):
                     batch, sample=True, n_samples=self.train_n_samples
                 ).mean(1)
                 output = torch.log_softmax(logits, dim=1)
-                # golds = golds.cuda()
                 num_classes = output.size(1)
                 nll = self.loss(output, golds, reduction="mean")
                 
-                # nll = self.model.model.lm_head.svd['s_principal'].mean()
                 self.accelerator.backward(nll)
                 self.opt.step()
                 self.opt.zero_grad()
@@ -418,20 +349,14 @@ class ScalaBL(WrapperBase):
                 assert not math.isnan(kl)
                 if self.accelerator.is_local_main_process:
                     if self.wandb_logger is not None:
-                        self.wandb_logger.log(
-                            {
-                                #"train_acc": accs.avg,
-                                "train_acc": acc,
-                                #"train_nll_loss": nll_losses.avg,
-                                "train_nll_loss": nll_loss,
-                                #"kl_loss": kl_losses.avg,
-                                "kl_loss": kl,
-                                #"elbo_loss": elbo_losses.avg,
-                                "elbo_loss": loss,
-                                "lr": self.opt.param_groups[0]["lr"],
-                                "pi": self.pi,
-                            }
-                        )
+                        self.wandb_logger.log({
+                            "train_acc": acc,
+                            "train_nll_loss": nll_loss,
+                            "kl_loss": kl,
+                            "elbo_loss": loss,
+                            "lr": self.opt.param_groups[0]["lr"],
+                            "pi": self.pi,
+                        })
 
                 self.step += self.accelerator.num_processes
                 pbar.update(1)
