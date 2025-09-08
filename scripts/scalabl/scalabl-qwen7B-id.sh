@@ -7,7 +7,8 @@ gamma=8
 lora_r=8
 lora_alpha=$(echo $lora_r*2 | bc)
 
-for dataset in winogrande_s ARC-Challenge ARC-Easy winogrande_m obqa boolq; do
+#for dataset in winogrande_s ARC-Challenge ARC-Easy winogrande_m obqa boolq; do
+for dataset in winogrande_s; do
     for sample in 10; do
         for gpuid_seed in "0 0"; do
             read gpuid seed <<< "$gpuid_seed"
@@ -26,7 +27,9 @@ for dataset in winogrande_s ARC-Challenge ARC-Easy winogrande_m obqa boolq; do
                 --eval-per-steps 6000 \
                 --bayes-klreweighting \
                 --bayes-eps $eps --bayes-beta $beta --bayes-gamma $gamma --bayes-kllr $kllr --bayes-datasetrescaling \
-                --bayes-train-n-samples 1 --bayes-eval-n-samples 1 --bayes-eval-n-samples-final $sample  
+                --bayes-train-n-samples 1 --bayes-eval-n-samples 1 --bayes-eval-n-samples-final $sample  \
+                &
         done 
+        wait
     done
 done

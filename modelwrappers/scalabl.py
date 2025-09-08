@@ -16,6 +16,7 @@ from transformers import PreTrainedModel
 from peft.config import PeftConfig
 from peft.tuners.lora import LoraLayer, Linear
 from scalabl_layers import ScalaBLLinear
+from schedulers import BLoBKLScheduler, BLoBNLLScheduler
 
 ## Model Specific Argument Parsing
 def get_parser() -> ArgumentParser:
@@ -110,74 +111,73 @@ class ScalaBL(WrapperBase):
         if args.load_lora_path is not None:
             self.load_adapter(args.load_lora_path, adapter_name)
 
-        self.i = 1  # for the KL re-weighting.
-        self.ii = 1
-        self.M = 0  # for the KL re-weighting.
+        # self.i = 1  # for the KL re-weighting.
+        # self.ii = 1
+        # self.M = 0  # for the KL re-weighting.
 
         self.train_n_samples = self.args.bayes_train_n_samples
         self.eval_n_samples = self.args.bayes_eval_n_samples
         self.klreweighting = self.args.bayes_klreweighting
 
-        if args.max_train_steps == 0:
-            num_training_steps = args.num_samples * args.n_epochs // args.batch_size
-        else:
-            num_training_steps = args.max_train_steps
-        for n, p in self.named_parameters():
-            if p.requires_grad:
-                print(n, p.shape)
-        warmup_steps = num_training_steps * args.warmup_ratio
-        no_decay = ["bias", "LayerNorm.weight"]
-        for n, p in self.named_parameters():
-            if not any(nd in n for nd in no_decay):
-                print(n, p.shape)
-        optimizer_grouped_parameters = [
-            {
-                "params": [
-                    p
-                    for n, p in self.named_parameters()
-                    if not any(nd in n for nd in no_decay) 
-                ],
-                "weight_decay": args.opt_wd,
-            },
-            {
-                "params": [
-                    p
-                    for n, p in self.named_parameters()
-                    if any(nd in n for nd in no_decay)
-                ],
-                "weight_decay": 0.0,
-            },
-        ]
-        if args.opt == "adamw" or args.opt == "adam":
-            self.opt = optimizer_dict[args.opt](
-                #optimizer_grouped_parameters,
-                self.parameters(),
-                lr=args.lr,
-                eps=args.adam_epsilon,
-                weight_decay=args.opt_wd,
-            )
-        else:
-            self.opt = optimizer_dict[args.opt](
-                optimizer_grouped_parameters, lr=args.lr, weight_decay=args.opt_wd
-            )
-        self.scheduler = get_linear_schedule_with_warmup(
-            self.opt, warmup_steps, num_training_steps
-        )
+        # if args.max_train_steps == 0:
+            # num_training_steps = args.num_samples * args.n_epochs // args.batch_size
+        # else:
+            # num_training_steps = args.max_train_steps
+        # for n, p in self.named_parameters():
+            # if p.requires_grad:
+                # print(n, p.shape)
+        # warmup_steps = num_training_steps * args.warmup_ratio
+        # no_decay = ["bias", "LayerNorm.weight"]
+        # for n, p in self.named_parameters():
+            # if not any(nd in n for nd in no_decay):
+                # print(n, p.shape)
+        # optimizer_grouped_parameters = [
+            # {
+                # "params": [
+                    # p
+                    # for n, p in self.named_parameters()
+                    # if not any(nd in n for nd in no_decay) 
+                # ],
+                # "weight_decay": args.opt_wd,
+            # },
+            # {
+                # "params": [
+                    # p
+                    # for n, p in self.named_parameters()
+                    # if any(nd in n for nd in no_decay)
+                # ],
+                # "weight_decay": 0.0,
+            # },
+        # ]
+        # if args.opt == "adamw" or args.opt == "adam":
+            # self.opt = optimizer_dict[args.opt](
+                # self.parameters(),
+                # lr=args.lr,
+                # eps=args.adam_epsilon,
+                # weight_decay=args.opt_wd,
+            # )
+        # else:
+            # self.opt = optimizer_dict[args.opt](
+                # optimizer_grouped_parameters, lr=args.lr, weight_decay=args.opt_wd
+            # )
+        # self.scheduler = get_linear_schedule_with_warmup(
+            # self.opt, warmup_steps, num_training_steps
+        # )
 
 
-        if self.args.max_train_steps == 0:
-            num_training_steps = (
-                self.args.num_samples * self.args.n_epochs // self.args.batch_size
-            )
-        else:
-            num_training_steps = self.args.max_train_steps
-        warmup_steps = num_training_steps * self.args.warmup_ratio
+        # if self.args.max_train_steps == 0:
+            # num_training_steps = (
+                # self.args.num_samples * self.args.n_epochs // self.args.batch_size
+            # )
+        # else:
+            # num_training_steps = self.args.max_train_steps
+        # warmup_steps = num_training_steps * self.args.warmup_ratio
 
-        params = [param for name, param in self.named_parameters()]
-        self.opt2 = SGD([{"params": params}], lr=args.bayes_kllr)
-        self.scheduler2 = get_linear_schedule_with_warmup(
-            self.opt2, warmup_steps, num_training_steps
-        )
+        # params = [param for name, param in self.named_parameters()]
+        # self.opt2 = SGD([{"params": params}], lr=args.bayes_kllr)
+        # self.scheduler2 = get_linear_schedule_with_warmup(
+            # self.opt2, warmup_steps, num_training_steps
+        # )
 
     def _modify_lora_layers(self, module):
         """
@@ -291,9 +291,13 @@ class ScalaBL(WrapperBase):
                 nll = self.loss(output, golds, reduction="mean")
                 
                 self.accelerator.backward(nll)
-                self.opt.step()
-                self.opt.zero_grad()
-                self.scheduler.step()
+                self.nll_optimizer.step()
+                self.nll_optimizer.zero_grad()
+                self.nll_scheduler.step()
+
+                # self.opt.step()
+                # self.opt.zero_grad()
+                # self.scheduler.step()
 
                 kl_divs = []
                 for _ in range(self.train_n_samples):
@@ -303,20 +307,28 @@ class ScalaBL(WrapperBase):
                         kl_divs.append(self.div_posterior_prior(self.base_model))
                 kl = torch.mean(torch.stack(kl_divs), dim=0)
                 
-                if self.klreweighting:
-                    if self.i % self.M == 0:
-                        i = self.M
-                    else:
-                        i = self.i % self.M
-                    self.pi = 2**i / (2 ** (self.M + 1) - 1)
-                    self.i += 1
-                else:
-                    self.pi = 1 / self.M
-                kl_div = kl * self.pi
-                self.accelerator.backward(kl_div)
-                self.opt2.step()
-                self.opt2.zero_grad()
-                self.scheduler2.step()
+                
+                # if self.klreweighting:
+                    # if self.i % self.M == 0:
+                        # i = self.M
+                    # else:
+                        # i = self.i % self.M
+                    # self.pi = 2**i / (2 ** (self.M + 1) - 1)
+                    # self.i += 1
+                # else:
+                    # self.pi = 1 / self.M
+                # kl_div = kl * self.pi
+                # self.accelerator.backward(kl_div)
+                # self.opt2.step()
+                # self.opt2.zero_grad()
+                # self.scheduler2.step()
+
+                self.pi = self.kl_scheduler.scheduler.last_pi
+                self.accelerator.backward(kl)
+                self.kl_optimizer.step()
+                self.kl_optimizer.zero_grad()
+                self.kl_scheduler.step()
+
 
                 acc = accuracy_topk(output.data, golds)
 
@@ -324,7 +336,7 @@ class ScalaBL(WrapperBase):
                     (kl + nll).detach().float().cpu().numpy(),
                     acc.item(),
                     nll.detach().float().cpu().numpy(),
-                    kl_div.detach().float().cpu().numpy(),
+                    kl.detach().float().cpu().numpy() * self.pi,
                 )
 
                 if self.args.dataset_type == "mcdataset":
@@ -436,12 +448,59 @@ class ScalaBL(WrapperBase):
                 )
         return val_acc, val_ece, val_nll, val_brier
 
+
     def prepare_for_fit_evaluate(self, dataset, wandb_logger=None):
         """
         Prepare the model for training and evaluation.
         """
         self.wandb_logger = wandb_logger
         train_loader, test_loader = dataset.train_dataloader, dataset.test_dataloader
+        # assert self.args.max_train_steps != 0 and self.args.n_epochs == 0
+        warmup_steps = int(self.args.max_train_steps * self.args.warmup_ratio)
+        num_update_steps_per_epoch = len(train_loader)
+        self.args.n_epochs = (
+            math.ceil(self.args.max_train_steps / num_update_steps_per_epoch)
+            if self.args.ood_ori_dataset is None else 0
+        )
+
+        no_decay = ["bias", "LayerNorm.weight"]
+        decay_params, no_decay_params = [], []
+        for n, p in self.named_parameters():
+            if p.requires_grad:
+                if any(nd in n for nd in no_decay):
+                    no_decay_params.append(p)
+                else:
+                    decay_params.append(p)
+        
+        self.nll_optimizer = optimizer_dict[self.args.opt](
+            params=[
+                {"params": decay_params, "weight_decay": self.args.opt_wd},
+                {"params": no_decay_params, "weight_decay": 0.0},
+            ],
+            lr=self.args.lr,
+            eps=self.args.adam_epsilon, 
+        )
+
+        self.nll_scheduler = BLoBNLLScheduler(
+            self.nll_optimizer,
+            warmup_steps=warmup_steps,
+            total_steps=self.args.max_train_steps,
+        )
+        
+        self.kl_optimizer = torch.optim.SGD(
+            self.parameters(),
+            lr=self.args.bayes_kllr
+        )
+        self.kl_scheduler = BLoBKLScheduler(
+            self.kl_optimizer,
+            warmup_steps=warmup_steps,
+            total_steps=self.args.max_train_steps,
+            num_samples=dataset.num_samples,
+            batch_size=self.args.batch_size,
+            gamma=self.args.bayes_gamma,
+            use_exponential=self.args.bayes_klreweighting,
+        )
+
         if self.args.testing_set == "train_val":
             val_loader = dataset.val_dataloader
             val_loader = self.accelerator.prepare(val_loader)
@@ -450,16 +509,6 @@ class ScalaBL(WrapperBase):
         if self.args.dataset_type == "mcdataset":
             self.target_ids = dataset.target_ids.squeeze(-1)
 
-        l_train = len(train_loader)
-
-        num_update_steps_per_epoch = len(train_loader)
-        if self.args.max_train_steps == 0:
-            self.args.max_train_steps = self.args.n_epochs * num_update_steps_per_epoch
-        self.args.n_epochs = (
-            math.ceil(self.args.max_train_steps / num_update_steps_per_epoch)
-            if self.args.ood_ori_dataset is None
-            else 0
-        )
         if self.args.early_stop_steps > 0:
             self.earlystop_n_epochs = (
                 math.ceil(self.args.early_stop_steps / num_update_steps_per_epoch)
@@ -474,35 +523,99 @@ class ScalaBL(WrapperBase):
         self.step = 0
 
         self.base_model = self.base_model.to(self.device)
-        
         (
             self.base_model,
-            self.opt,
+            self.nll_optimizer,
             train_loader,
             test_loader,
-            self.scheduler,
-            self.scheduler2,
-            self.opt2,
+            self.nll_scheduler,
+            self.kl_scheduler,
+            self.kl_optimizer,
         ) = self.accelerator.prepare(
             self.base_model,
-            self.opt,
+            self.nll_optimizer,
             train_loader,
             test_loader,
-            self.scheduler,
-            self.scheduler2,
-            self.opt2,
+            self.nll_scheduler,
+            self.kl_scheduler,
+            self.kl_optimizer,
         )
 
         self.train_loader = train_loader
         self.test_loader = test_loader
-        if self.args.bayes_datasetrescaling:
-            self.M = int(
-                100
-                * (dataset.num_samples ** (math.pi / self.args.bayes_gamma))
-                / (l_train / len(train_loader))
-                / self.args.batch_size
-            )
-        else:
-            self.M = len(train_loader)
 
-        print("M:", self.M)
+        for n, p in self.named_parameters():
+            if p.requires_grad:
+                print(n, p.shape)
+
+
+    # def prepare_for_fit_evaluate(self, dataset, wandb_logger=None):
+        # """
+        # Prepare the model for training and evaluation.
+        # """
+        # self.wandb_logger = wandb_logger
+        # train_loader, test_loader = dataset.train_dataloader, dataset.test_dataloader
+        # if self.args.testing_set == "train_val":
+            # val_loader = dataset.val_dataloader
+            # val_loader = self.accelerator.prepare(val_loader)
+            # self.val_loader = val_loader
+
+        # if self.args.dataset_type == "mcdataset":
+            # self.target_ids = dataset.target_ids.squeeze(-1)
+
+        # l_train = len(train_loader)
+
+        # num_update_steps_per_epoch = len(train_loader)
+        # if self.args.max_train_steps == 0:
+            # self.args.max_train_steps = self.args.n_epochs * num_update_steps_per_epoch
+        # self.args.n_epochs = (
+            # math.ceil(self.args.max_train_steps / num_update_steps_per_epoch)
+            # if self.args.ood_ori_dataset is None
+            # else 0
+        # )
+        # if self.args.early_stop_steps > 0:
+            # self.earlystop_n_epochs = (
+                # math.ceil(self.args.early_stop_steps / num_update_steps_per_epoch)
+                # if self.args.ood_ori_dataset is None
+                # else 0
+            # )
+        # else:
+            # self.earlystop_n_epochs = 0
+        # if self.accelerator.is_local_main_process:
+            # print("len(train_loader):", len(train_loader))
+            # print("num of epochs:", self.args.n_epochs)
+        # self.step = 0
+
+        # self.base_model = self.base_model.to(self.device)
+        
+        # (
+            # self.base_model,
+            # self.opt,
+            # train_loader,
+            # test_loader,
+            # self.scheduler,
+            # self.scheduler2,
+            # self.opt2,
+        # ) = self.accelerator.prepare(
+            # self.base_model,
+            # self.opt,
+            # train_loader,
+            # test_loader,
+            # self.scheduler,
+            # self.scheduler2,
+            # self.opt2,
+        # )
+
+        # self.train_loader = train_loader
+        # self.test_loader = test_loader
+        # if self.args.bayes_datasetrescaling:
+            # self.M = int(
+                # 100
+                # * (dataset.num_samples ** (math.pi / self.args.bayes_gamma))
+                # / (l_train / len(train_loader))
+                # / self.args.batch_size
+            # )
+        # else:
+            # self.M = len(train_loader)
+
+        # print("M:", self.M)
