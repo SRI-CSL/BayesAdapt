@@ -8,6 +8,7 @@ from peft.utils.integrations import dequantize_bnb_weight
 import bitsandbytes as bnb
 from full_cov import FullRankCov
 import numpy as np 
+from peft.tuners.lora import LoraLayer, Linear
 
 class ScalaBLLinear(nn.Module):
     def __init__(self, in_features: int, out_features: int, bias: bool = False,
@@ -81,6 +82,58 @@ class ScalaBLLinear(nn.Module):
             - 0.5
         )
         return kl_div.sum()
+
+class ScalablLoraWrapper(nn.Module):
+    def __init__(self, lora_layer: LoraLayer, bayes_eps: float = 0.05):
+        super().__init__()
+        self.base_layer = lora_layer.base_layer
+        self.lora_A = lora_layer.lora_A
+        self.lora_B = lora_layer.lora_B
+        self.lora_dropout = lora_layer.lora_dropout
+        self.scaling = lora_layer.scaling
+        self.active_adapters = lora_layer.active_adapters
+        for adapter_name in self.active_adapters:
+            self.lora_A[adapter_name] = ScalaBLLinear(
+                in_features=lora_layer.lora_A[adapter_name].in_features,
+                out_features=lora_layer.lora_A[adapter_name].out_features,
+                s_sigma_init_eps=bayes_eps,
+                blobsample=True,
+            )
+
+    def forward(self, x: torch.Tensor, *args: Any, **kwargs: Any):
+        previous_dtype = x.dtype
+        result = self.base_layer(x, *args, **kwargs)
+        for active_adapter in self.active_adapters:
+            if active_adapter not in self.lora_A.keys():
+                continue
+
+            x = x.to(self.lora_B[active_adapter].weight.dtype)
+            dropout = self.lora_dropout[active_adapter]
+            scaling = self.scaling[active_adapter]
+            x = dropout(x)
+            lora_A = self.lora_A[active_adapter]
+            lora_B = self.lora_B[active_adapter]
+
+            result += lora_A(x, lora_B, scaling)
+        result = result.to(previous_dtype)
+        return result
+    
+    @property
+    def kl_div(self) -> torch.Tensor:
+        kl_vals = []
+        for active_adapter in self.active_adapters:
+            if active_adapter not in self.lora_A.keys():
+                continue
+            kl_vals.append(self.lora_A[active_adapter].kl_div)
+        if len(kl_vals) == 1:
+            return kl_vals[0]
+        kl = torch.stack(kl_vals).sum()
+        return kl
+
+    def sample(self, status=True):
+        if self.training is True and status is False:
+            raise ValueError("blobsample should be set to True only during training.")
+        self.lora_A['default'].blobsample = status
 
 
 class SimpleLinear(nn.Module):

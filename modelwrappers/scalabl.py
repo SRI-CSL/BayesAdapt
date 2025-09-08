@@ -15,7 +15,7 @@ from transformers import PreTrainedModel
 
 from peft.config import PeftConfig
 from peft.tuners.lora import LoraLayer, Linear
-from scalabl_layers import ScalaBLLinear
+from scalabl_layers import ScalaBLLinear, ScalablLoraWrapper
 from schedulers import BLoBKLScheduler, BLoBNLLScheduler
 
 ## Model Specific Argument Parsing
@@ -62,32 +62,34 @@ class ScalaBLConfig:
     bayes_beta: float = field(metadata={"help": "Bayes beta"})
 
 
-def blob_linear_forward(self, x: torch.Tensor, *args: Any, **kwargs: Any):
-    previous_dtype = x.dtype
-    result = self.base_layer(x, *args, **kwargs)
-    for active_adapter in self.active_adapters:
-        if active_adapter not in self.lora_A.keys():
-            continue
 
-        x = x.to(self.lora_B[active_adapter].weight.dtype)
-        dropout = self.lora_dropout[active_adapter]
-        scaling = self.scaling[active_adapter]
-        x = dropout(x)
-        lora_A = self.lora_A[active_adapter]
-        lora_B = self.lora_B[active_adapter]
+# def blob_linear_forward(self, x: torch.Tensor, *args: Any, **kwargs: Any):
+    # previous_dtype = x.dtype
+    # result = self.base_layer(x, *args, **kwargs)
+    # for active_adapter in self.active_adapters:
+        # if active_adapter not in self.lora_A.keys():
+            # continue
 
-        result += lora_A(x, lora_B, scaling)
+        # x = x.to(self.lora_B[active_adapter].weight.dtype)
+        # dropout = self.lora_dropout[active_adapter]
+        # scaling = self.scaling[active_adapter]
+        # x = dropout(x)
+        # lora_A = self.lora_A[active_adapter]
+        # lora_B = self.lora_B[active_adapter]
 
-    result = result.to(previous_dtype)
-    return result
+        # result += lora_A(x, lora_B, scaling)
 
-def div_posterior_prior(self) -> torch.Tensor:
-    return self.lora_A['default'].kl_div
+    # result = result.to(previous_dtype)
+    # return result
 
-def sample(self, status=True):
-    if self.training is True and status is False:
-        raise ValueError("blobsample should be set to True only during training.")
-    self.blobsample = status
+# def div_posterior_prior(self) -> torch.Tensor:
+    # return self.lora_A['default'].kl_div
+
+# def sample(self, status=True):
+    # if self.training is True and status is False:
+        # raise ValueError("blobsample should be set to True only during training.")
+    # self.blobsample = status
+
 
 class ScalaBL(WrapperBase):
     """ScalaBL model."""
@@ -111,73 +113,9 @@ class ScalaBL(WrapperBase):
         if args.load_lora_path is not None:
             self.load_adapter(args.load_lora_path, adapter_name)
 
-        # self.i = 1  # for the KL re-weighting.
-        # self.ii = 1
-        # self.M = 0  # for the KL re-weighting.
-
         self.train_n_samples = self.args.bayes_train_n_samples
         self.eval_n_samples = self.args.bayes_eval_n_samples
         self.klreweighting = self.args.bayes_klreweighting
-
-        # if args.max_train_steps == 0:
-            # num_training_steps = args.num_samples * args.n_epochs // args.batch_size
-        # else:
-            # num_training_steps = args.max_train_steps
-        # for n, p in self.named_parameters():
-            # if p.requires_grad:
-                # print(n, p.shape)
-        # warmup_steps = num_training_steps * args.warmup_ratio
-        # no_decay = ["bias", "LayerNorm.weight"]
-        # for n, p in self.named_parameters():
-            # if not any(nd in n for nd in no_decay):
-                # print(n, p.shape)
-        # optimizer_grouped_parameters = [
-            # {
-                # "params": [
-                    # p
-                    # for n, p in self.named_parameters()
-                    # if not any(nd in n for nd in no_decay) 
-                # ],
-                # "weight_decay": args.opt_wd,
-            # },
-            # {
-                # "params": [
-                    # p
-                    # for n, p in self.named_parameters()
-                    # if any(nd in n for nd in no_decay)
-                # ],
-                # "weight_decay": 0.0,
-            # },
-        # ]
-        # if args.opt == "adamw" or args.opt == "adam":
-            # self.opt = optimizer_dict[args.opt](
-                # self.parameters(),
-                # lr=args.lr,
-                # eps=args.adam_epsilon,
-                # weight_decay=args.opt_wd,
-            # )
-        # else:
-            # self.opt = optimizer_dict[args.opt](
-                # optimizer_grouped_parameters, lr=args.lr, weight_decay=args.opt_wd
-            # )
-        # self.scheduler = get_linear_schedule_with_warmup(
-            # self.opt, warmup_steps, num_training_steps
-        # )
-
-
-        # if self.args.max_train_steps == 0:
-            # num_training_steps = (
-                # self.args.num_samples * self.args.n_epochs // self.args.batch_size
-            # )
-        # else:
-            # num_training_steps = self.args.max_train_steps
-        # warmup_steps = num_training_steps * self.args.warmup_ratio
-
-        # params = [param for name, param in self.named_parameters()]
-        # self.opt2 = SGD([{"params": params}], lr=args.bayes_kllr)
-        # self.scheduler2 = get_linear_schedule_with_warmup(
-            # self.opt2, warmup_steps, num_training_steps
-        # )
 
     def _modify_lora_layers(self, module):
         """
@@ -185,54 +123,55 @@ class ScalaBL(WrapperBase):
         """
         for name, child in tqdm(module.named_children(), desc="Modifying Lora Layers"):
             if isinstance(child, LoraLayer) and isinstance(child, Linear):
-                self._wrap_lora_layer(child)
-                setattr(
-                    child,
-                    "forward",
-                    blob_linear_forward.__get__(child, child.__class__),
-                )
-                setattr(
-                    child,
-                    "div_posterior_prior",
-                    div_posterior_prior.__get__(child, child.__class__),
-                )
-                setattr(child, "sample", sample.__get__(child, child.__class__))
+                module._modules[name] = ScalablLoraWrapper(child, bayes_eps=self.blobconfig.bayes_eps)
+                # self._wrap_lora_layer(child)
+                # setattr(
+                    # child,
+                    # "forward",
+                    # blob_linear_forward.__get__(child, child.__class__),
+                # )
+                # setattr(
+                    # child,
+                    # "div_posterior_prior",
+                    # div_posterior_prior.__get__(child, child.__class__),
+                # )
+                # setattr(child, "sample", sample.__get__(child, child.__class__))
             else:
                 self._modify_lora_layers(child)
 
-    def _wrap_lora_layer(self, lora_layer):
-        lora_layer.bayes_eps = self.blobconfig.bayes_eps
-        lora_layer.bayes_gamma = self.blobconfig.bayes_gamma
-        lora_layer.bayes_beta = self.blobconfig.bayes_beta
-        lora_layer.blobsample = True
-        del lora_layer.lora_A['default'].weight
+    # def _wrap_lora_layer(self, lora_layer):
+        # lora_layer.bayes_eps = self.blobconfig.bayes_eps
+        # lora_layer.bayes_gamma = self.blobconfig.bayes_gamma
+        # lora_layer.bayes_beta = self.blobconfig.bayes_beta
+        # lora_layer.blobsample = True
+        # del lora_layer.lora_A['default'].weight
         
-        lora_layer.lora_A['default'] = ScalaBLLinear(
-            in_features=lora_layer.lora_A['default'].in_features,
-            out_features=lora_layer.lora_A['default'].out_features,
-            s_sigma_init_eps=lora_layer.bayes_eps,
-            blobsample=True,
-        )
+        # lora_layer.lora_A['default'] = ScalaBLLinear(
+            # in_features=lora_layer.lora_A['default'].in_features,
+            # out_features=lora_layer.lora_A['default'].out_features,
+            # s_sigma_init_eps=lora_layer.bayes_eps,
+            # blobsample=True,
+        # )
 
-    def div_posterior_prior(self, module):
-        kl = 0
-        for name, child in module.named_children():
-            if isinstance(child, LoraLayer):
-                kl_ = child.div_posterior_prior()
-                kl += kl_
-            else:
-                kl += self.div_posterior_prior(child)
-        return kl
+    # def div_posterior_prior(self, module):
+        # kl = 0
+        # for name, child in module.named_children():
+            # if isinstance(child, LoraLayer):
+                # kl_ = child.div_posterior_prior()
+                # kl += kl_
+            # else:
+                # kl += self.div_posterior_prior(child)
+        # return kl
 
-    def sample(self, module, status=True):
-        """
-        Set the sampling status of the model.
-        """
-        for name, child in module.named_children():
-            if isinstance(child, LoraLayer):
-                child.sample(status)
-            else:
-                self.sample(child, status)
+    # def sample(self, module, status=True):
+        # """
+        # Set the sampling status of the model.
+        # """
+        # for name, child in module.named_children():
+            # if isinstance(child, LoraLayer):
+                # child.sample(status)
+            # else:
+                # self.sample(child, status)
 
     def forward_logits(self, batch, sample=True, n_samples=1, **kwargs) -> torch.Tensor:
         if self.args.dataset_type == "mcdataset":
@@ -295,34 +234,20 @@ class ScalaBL(WrapperBase):
                 self.nll_optimizer.zero_grad()
                 self.nll_scheduler.step()
 
-                # self.opt.step()
-                # self.opt.zero_grad()
-                # self.scheduler.step()
-
                 kl_divs = []
-                for _ in range(self.train_n_samples):
-                    if hasattr(self.base_model, "module"):
-                        kl_divs.append(self.div_posterior_prior(self.base_model.module))
-                    else:
-                        kl_divs.append(self.div_posterior_prior(self.base_model))
-                kl = torch.mean(torch.stack(kl_divs), dim=0)
-                
-                
-                # if self.klreweighting:
-                    # if self.i % self.M == 0:
-                        # i = self.M
-                    # else:
-                        # i = self.i % self.M
-                    # self.pi = 2**i / (2 ** (self.M + 1) - 1)
-                    # self.i += 1
-                # else:
-                    # self.pi = 1 / self.M
-                # kl_div = kl * self.pi
-                # self.accelerator.backward(kl_div)
-                # self.opt2.step()
-                # self.opt2.zero_grad()
-                # self.scheduler2.step()
+                for module in self.base_model.modules():
+                    if isinstance(module, ScalablLoraWrapper):
+                        kl_divs.append(module.kl_div)
+                kl = torch.sum(torch.stack(kl_divs), dim=0)
 
+                # for _ in range(self.train_n_samples):
+                    # import ipdb; ipdb.set_trace() # noqa
+                    # if hasattr(self.base_model, "module"):
+                        # kl_divs.append(self.div_posterior_prior(self.base_model.module))
+                    # else:
+                        # kl_divs.append(self.div_posterior_prior(self.base_model))
+                # kl = torch.mean(torch.stack(kl_divs), dim=0)
+                
                 self.pi = self.kl_scheduler.scheduler.last_pi
                 self.accelerator.backward(kl)
                 self.kl_optimizer.step()
@@ -544,78 +469,6 @@ class ScalaBL(WrapperBase):
         self.train_loader = train_loader
         self.test_loader = test_loader
 
-        for n, p in self.named_parameters():
-            if p.requires_grad:
-                print(n, p.shape)
-
-
-    # def prepare_for_fit_evaluate(self, dataset, wandb_logger=None):
-        # """
-        # Prepare the model for training and evaluation.
-        # """
-        # self.wandb_logger = wandb_logger
-        # train_loader, test_loader = dataset.train_dataloader, dataset.test_dataloader
-        # if self.args.testing_set == "train_val":
-            # val_loader = dataset.val_dataloader
-            # val_loader = self.accelerator.prepare(val_loader)
-            # self.val_loader = val_loader
-
-        # if self.args.dataset_type == "mcdataset":
-            # self.target_ids = dataset.target_ids.squeeze(-1)
-
-        # l_train = len(train_loader)
-
-        # num_update_steps_per_epoch = len(train_loader)
-        # if self.args.max_train_steps == 0:
-            # self.args.max_train_steps = self.args.n_epochs * num_update_steps_per_epoch
-        # self.args.n_epochs = (
-            # math.ceil(self.args.max_train_steps / num_update_steps_per_epoch)
-            # if self.args.ood_ori_dataset is None
-            # else 0
-        # )
-        # if self.args.early_stop_steps > 0:
-            # self.earlystop_n_epochs = (
-                # math.ceil(self.args.early_stop_steps / num_update_steps_per_epoch)
-                # if self.args.ood_ori_dataset is None
-                # else 0
-            # )
-        # else:
-            # self.earlystop_n_epochs = 0
-        # if self.accelerator.is_local_main_process:
-            # print("len(train_loader):", len(train_loader))
-            # print("num of epochs:", self.args.n_epochs)
-        # self.step = 0
-
-        # self.base_model = self.base_model.to(self.device)
-        
-        # (
-            # self.base_model,
-            # self.opt,
-            # train_loader,
-            # test_loader,
-            # self.scheduler,
-            # self.scheduler2,
-            # self.opt2,
-        # ) = self.accelerator.prepare(
-            # self.base_model,
-            # self.opt,
-            # train_loader,
-            # test_loader,
-            # self.scheduler,
-            # self.scheduler2,
-            # self.opt2,
-        # )
-
-        # self.train_loader = train_loader
-        # self.test_loader = test_loader
-        # if self.args.bayes_datasetrescaling:
-            # self.M = int(
-                # 100
-                # * (dataset.num_samples ** (math.pi / self.args.bayes_gamma))
-                # / (l_train / len(train_loader))
-                # / self.args.batch_size
-            # )
-        # else:
-            # self.M = len(train_loader)
-
-        # print("M:", self.M)
+        # for n, p in self.named_parameters():
+            # if p.requires_grad:
+                # print(n, p.shape)
