@@ -125,8 +125,8 @@ class ScalablLoraWrapper(nn.Module):
             if active_adapter not in self.lora_A.keys():
                 continue
             kl_vals.append(self.lora_A[active_adapter].kl_div)
-        if len(kl_vals) == 1:
-            return kl_vals[0]
+        # if len(kl_vals) == 1:
+            # return kl_vals[0]
         kl = torch.stack(kl_vals).sum()
         return kl
 
