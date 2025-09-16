@@ -1,22 +1,20 @@
+import math
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from torch.optim import SGD
 from dataclasses import dataclass, field
 from typing import Any, List, Optional, Union
-import math
 from tqdm import tqdm
-
-from .wrapperbase import WrapperBase, get_linear_schedule_with_warmup, optimizer_dict
+from .wrapperbase import WrapperBase, optimizer_dict
 from utils.args import add_management_args, add_experiment_args, ArgumentParser
 from run.evaluation import *
-
 from transformers import PreTrainedModel
-
 from peft.config import PeftConfig
 from peft.tuners.lora import LoraLayer, Linear
-from scalabl_layers import ScalaBLLinear, ScalablLoraWrapper
+# from scalabl_layers import ScalaBLLinear, ScalablLoraWrapper
+# from blob_layers import BlobLinear, BlobLoraWrapper
 from schedulers import BLoBKLScheduler, BLoBNLLScheduler
+from lorawrappers import BlobLoraWrapper, ScalablLoraWrapper, VILoraWrapper
 
 ## Model Specific Argument Parsing
 def get_parser() -> ArgumentParser:
@@ -61,36 +59,6 @@ class ScalaBLConfig:
     bayes_gamma: float = field(metadata={"help": "Bayes gamma"})
     bayes_beta: float = field(metadata={"help": "Bayes beta"})
 
-
-
-# def blob_linear_forward(self, x: torch.Tensor, *args: Any, **kwargs: Any):
-    # previous_dtype = x.dtype
-    # result = self.base_layer(x, *args, **kwargs)
-    # for active_adapter in self.active_adapters:
-        # if active_adapter not in self.lora_A.keys():
-            # continue
-
-        # x = x.to(self.lora_B[active_adapter].weight.dtype)
-        # dropout = self.lora_dropout[active_adapter]
-        # scaling = self.scaling[active_adapter]
-        # x = dropout(x)
-        # lora_A = self.lora_A[active_adapter]
-        # lora_B = self.lora_B[active_adapter]
-
-        # result += lora_A(x, lora_B, scaling)
-
-    # result = result.to(previous_dtype)
-    # return result
-
-# def div_posterior_prior(self) -> torch.Tensor:
-    # return self.lora_A['default'].kl_div
-
-# def sample(self, status=True):
-    # if self.training is True and status is False:
-        # raise ValueError("blobsample should be set to True only during training.")
-    # self.blobsample = status
-
-
 class ScalaBL(WrapperBase):
     """ScalaBL model."""
 
@@ -115,63 +83,17 @@ class ScalaBL(WrapperBase):
 
         self.train_n_samples = self.args.bayes_train_n_samples
         self.eval_n_samples = self.args.bayes_eval_n_samples
-        self.klreweighting = self.args.bayes_klreweighting
+        # self.klreweighting = self.args.bayes_klreweighting
 
     def _modify_lora_layers(self, module):
         """
         Recursively go through the model and modify LoraLayer instances.
         """
-        for name, child in tqdm(module.named_children(), desc="Modifying Lora Layers"):
+        for name, child in module.named_children():
             if isinstance(child, LoraLayer) and isinstance(child, Linear):
                 module._modules[name] = ScalablLoraWrapper(child, bayes_eps=self.blobconfig.bayes_eps)
-                # self._wrap_lora_layer(child)
-                # setattr(
-                    # child,
-                    # "forward",
-                    # blob_linear_forward.__get__(child, child.__class__),
-                # )
-                # setattr(
-                    # child,
-                    # "div_posterior_prior",
-                    # div_posterior_prior.__get__(child, child.__class__),
-                # )
-                # setattr(child, "sample", sample.__get__(child, child.__class__))
             else:
                 self._modify_lora_layers(child)
-
-    # def _wrap_lora_layer(self, lora_layer):
-        # lora_layer.bayes_eps = self.blobconfig.bayes_eps
-        # lora_layer.bayes_gamma = self.blobconfig.bayes_gamma
-        # lora_layer.bayes_beta = self.blobconfig.bayes_beta
-        # lora_layer.blobsample = True
-        # del lora_layer.lora_A['default'].weight
-        
-        # lora_layer.lora_A['default'] = ScalaBLLinear(
-            # in_features=lora_layer.lora_A['default'].in_features,
-            # out_features=lora_layer.lora_A['default'].out_features,
-            # s_sigma_init_eps=lora_layer.bayes_eps,
-            # blobsample=True,
-        # )
-
-    # def div_posterior_prior(self, module):
-        # kl = 0
-        # for name, child in module.named_children():
-            # if isinstance(child, LoraLayer):
-                # kl_ = child.div_posterior_prior()
-                # kl += kl_
-            # else:
-                # kl += self.div_posterior_prior(child)
-        # return kl
-
-    # def sample(self, module, status=True):
-        # """
-        # Set the sampling status of the model.
-        # """
-        # for name, child in module.named_children():
-            # if isinstance(child, LoraLayer):
-                # child.sample(status)
-            # else:
-                # self.sample(child, status)
 
     def forward_logits(self, batch, sample=True, n_samples=1, **kwargs) -> torch.Tensor:
         if self.args.dataset_type == "mcdataset":
@@ -203,10 +125,10 @@ class ScalaBL(WrapperBase):
                 return torch.stack(res, dim=1)
 
     def fit(self, train_loader, eval_loader):
-        nll_losses = AverageMeter()
-        kl_losses = AverageMeter()
-        elbo_losses = AverageMeter()
-        accs = AverageMeter()
+        # nll_losses = AverageMeter()
+        # kl_losses = AverageMeter()
+        # elbo_losses = AverageMeter()
+        # accs = AverageMeter()
         samples_seen = 0
         with tqdm(
             total=len(train_loader),
@@ -236,24 +158,15 @@ class ScalaBL(WrapperBase):
 
                 kl_divs = []
                 for module in self.base_model.modules():
-                    if isinstance(module, ScalablLoraWrapper):
+                    if isinstance(module, VILoraWrapper):
                         kl_divs.append(module.kl_div)
                 kl = torch.sum(torch.stack(kl_divs), dim=0)
-
-                # for _ in range(self.train_n_samples):
-                    # import ipdb; ipdb.set_trace() # noqa
-                    # if hasattr(self.base_model, "module"):
-                        # kl_divs.append(self.div_posterior_prior(self.base_model.module))
-                    # else:
-                        # kl_divs.append(self.div_posterior_prior(self.base_model))
-                # kl = torch.mean(torch.stack(kl_divs), dim=0)
                 
                 self.pi = self.kl_scheduler.scheduler.last_pi
                 self.accelerator.backward(kl)
                 self.kl_optimizer.step()
                 self.kl_optimizer.zero_grad()
                 self.kl_scheduler.step()
-
 
                 acc = accuracy_topk(output.data, golds)
 
@@ -277,10 +190,10 @@ class ScalaBL(WrapperBase):
                     else:
                         samples_seen += references.shape[0]
                 len_batch = references.shape[0]
-                kl_losses.update(kl, len_batch)
-                nll_losses.update(nll_loss, len_batch)
-                elbo_losses.update(loss, len_batch)
-                accs.update(acc, len_batch)
+                # kl_losses.update(kl, len_batch)
+                # nll_losses.update(nll_loss, len_batch)
+                # elbo_losses.update(loss, len_batch)
+                # accs.update(acc, len_batch)
 
                 assert not math.isnan(nll_loss)
                 assert not math.isnan(kl)
