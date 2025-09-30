@@ -124,7 +124,12 @@ def main(args=None):
             save_folder = f"checkpoints/{args.modelwrapper}/{args.model}/{args.dataset}/{args.checkpoint_name}"
             create_if_not_exists(save_folder)
             model.model.base_model = accelerator.unwrap_model(model.model.base_model)
-            model.model.save_pretrained(save_folder, save_function=accelerator.save)
+            # model.model.save_pretrained(save_folder, save_function=accelerator.save)
+
+            #for the Qwen models, the lm_head and embedding layers are tied
+            #setting save_embedding_layers to False ensures that base embedding weights arent saved needlessly
+            #the lora weights for the lm_head/embedding layers are still saved 
+            model.model.save_pretrained(save_folder, save_function=accelerator.save, save_embedding_layers=False)
             print("Model saved to:", save_folder)
 
     if not args.nowand:

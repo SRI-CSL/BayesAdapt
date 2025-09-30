@@ -14,7 +14,7 @@ from peft.tuners.lora import LoraLayer, Linear
 # from scalabl_layers import ScalaBLLinear, ScalablLoraWrapper
 # from blob_layers import BlobLinear, BlobLoraWrapper
 from schedulers import BLoBKLScheduler, BLoBNLLScheduler
-from lorawrappers import BlobLoraWrapper, ScalablLoraWrapper, VILoraWrapper
+from lorawrappers import BlobLoraWrapper, ScalablLoraWrapper, VILoraWrapper, MCDropoutLoraWrapper, DeepEnsembleLoraWrapper, LoraWrapper, SVDLoraWrapper
 
 ## Model Specific Argument Parsing
 def get_parser() -> ArgumentParser:
@@ -92,6 +92,10 @@ class ScalaBL(WrapperBase):
         for name, child in module.named_children():
             if isinstance(child, LoraLayer) and isinstance(child, Linear):
                 module._modules[name] = ScalablLoraWrapper(child, bayes_eps=self.blobconfig.bayes_eps)
+                #module._modules[name] = MCDropoutLoraWrapper(child, bayes_eps=self.blobconfig.bayes_eps)
+                #module._modules[name] = MCDropoutLoraWrapper(child)
+                #module._modules[name] = DeepEnsembleLoraWrapper(child)
+                # module._modules[name] = LoraWrapper(child)
             else:
                 self._modify_lora_layers(child)
 
@@ -146,10 +150,22 @@ class ScalaBL(WrapperBase):
                     )
                 logits = self.forward_logits(
                     batch, sample=True, n_samples=self.train_n_samples
-                ).mean(1)
-                output = torch.log_softmax(logits, dim=1)
-                num_classes = output.size(1)
-                nll = self.loss(output, golds, reduction="mean")
+                )
+                B, num_samples, num_classes = logits.shape
+                golds = golds.unsqueeze(-1).expand(B, num_samples)
+                log_probs = torch.log_softmax(logits, dim=-1)
+                nll = self.loss(
+                    log_probs.view(B * num_samples, num_classes),
+                    golds.reshape(B * num_samples),
+                    reduction="none"
+                ).reshape(B, num_samples)
+                # logits = logits.mean(dim=1)
+                # output = torch.log_softmax(logits, dim=1)
+                # num_classes = output.size(1)
+                # nll = self.loss(output, golds, reduction="mean")
+                nll = nll.mean()
+
+                acc = (log_probs.argmax(dim=-1) == golds).float().mean()
                 
                 self.accelerator.backward(nll)
                 self.nll_optimizer.step()
@@ -160,15 +176,19 @@ class ScalaBL(WrapperBase):
                 for module in self.base_model.modules():
                     if isinstance(module, VILoraWrapper):
                         kl_divs.append(module.kl_div)
-                kl = torch.sum(torch.stack(kl_divs), dim=0)
-                
-                self.pi = self.kl_scheduler.scheduler.last_pi
-                self.accelerator.backward(kl)
-                self.kl_optimizer.step()
-                self.kl_optimizer.zero_grad()
-                self.kl_scheduler.step()
 
-                acc = accuracy_topk(output.data, golds)
+                if len(kl_divs) > 0:
+                    kl = torch.sum(torch.stack(kl_divs), dim=0)
+                    self.pi = self.kl_scheduler.scheduler.last_pi
+                    self.accelerator.backward(kl)
+                    self.kl_optimizer.step()
+                    self.kl_optimizer.zero_grad()
+                    self.kl_scheduler.step()
+                else:
+                    kl = torch.tensor(0.0)
+                    self.pi = 0.0
+
+                # acc = accuracy_topk(output.data, golds)
 
                 loss, acc, nll_loss, kl = (
                     (kl + nll).detach().float().cpu().numpy(),

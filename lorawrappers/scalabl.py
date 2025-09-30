@@ -4,7 +4,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 from tqdm import tqdm
 from typing import Any, List, Optional, Union
-from peft.tuners.lora import LoraLayer, Linear
+from peft.tuners.lora import LoraLayer
 from .viwrapper import VILoraWrapper
 
 class ScalaBLLinear(nn.Module):
@@ -16,10 +16,8 @@ class ScalaBLLinear(nn.Module):
         rand_weights = nn.Linear(in_features, out_features, bias=False).weight.detach()
         _, s, Vh = torch.linalg.svd(rand_weights, full_matrices=False)
         self.rank = min(in_features, out_features)
-        # self.U = nn.Parameter(U.contiguous())
         self.log_s = nn.Parameter(torch.log(s))
         self.Vh = nn.Parameter(Vh.contiguous())
-        # self.register_buffer("Vh", Vh.contiguous())
         z = torch.zeros(self.rank)
         self.log_s_sigma = nn.Parameter(z)
         nn.init.uniform_(
@@ -28,28 +26,27 @@ class ScalaBLLinear(nn.Module):
             s_sigma_init_eps,
         )
         self.log_s_sigma.data = self.log_s_sigma.data.log()
-
         self.register_buffer("log_p_mu", torch.log(z + 1e-8))
         self.register_buffer("log_p_sigma", torch.log(z + 1))
         self.blobsample = blobsample
     
-    @property
-    def s(self) -> torch.Tensor:
-        return self.log_s.exp()
+    # @property
+    # def s(self) -> torch.Tensor:
+        # return self.log_s.exp()
 
-    @property
-    def s_sigma(self) -> torch.Tensor:
-        return self.log_s_sigma.exp()
+    # @property
+    # def s_sigma(self) -> torch.Tensor:
+        # return self.log_s_sigma.exp()
 
     def forward(self, x, lora_B, scaling):
-        #W = self.U @ torch.diag(self.s) @ self.Vh
-        W = torch.diag(self.s) @ self.Vh
+        s = self.log_s.exp()
+        W = torch.diag(s) @ self.Vh
         result = lora_B(F.linear(x, W)) * scaling
 
         if self.blobsample: 
-            s_noise = self.s_sigma * torch.randn_like(self.log_s)
+            s_sigma = self.log_s_sigma.exp()
+            s_noise = s_sigma * torch.randn_like(self.log_s)
             S_noise = torch.diag(s_noise)
-            #W_noise = self.U @ S_noise @ self.Vh
             W_noise = S_noise @ self.Vh
             result += lora_B(F.linear(x, W_noise)) * scaling
         return result
