@@ -439,6 +439,20 @@ Answer:"""
             )
         return prompts
 
+    # def _format_prompts(self, batch):
+        # user_template = "Fill in the blank in the sentence below by choosing between options A or B. Output a single character as your answer.\nSentence:\n{sentence}\nOptions:\nA) {option1}\nB) {option2}"
+        # prompts = []
+        # for e in batch:
+            # user_prompt = user_template.format(
+                # sentence=e["sentence"],
+                # option1=e["option1"],
+                # option2=e["option2"],
+            # )
+            # messages = [{'role': 'user', 'content': user_prompt}]
+            # prompts.append(messages)
+        # prompts = self.tokenizer.apply_chat_template(prompts, tokenize=False, add_generation_prompt=True, enable_thinking=False)
+        # return prompts
+
     def clm_collate_fn(self, batch):
         prompts = self._format_prompts(batch)
         prompts = self._tokenize_prompts(prompts)
