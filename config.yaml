@@ -1,0 +1,93 @@
+# Dataset-related arguments
+dataset: winogrande_s
+dataset_type: mcdataset
+max_seq_len: 300
+
+# Model-related arguments
+modelwrapper: scalabl
+model: Qwen/Qwen2.5-7B
+model_type: causallm
+load_in_8bit: true
+
+# Optimization-specific arguments
+optim:
+  #loss: nll
+  #n_epochs: 0
+  max_train_steps: 5000
+  #eval_per_steps: 6000
+  early_stop_steps: 0
+  batch_size: 4
+  lr: 1.0e-4
+  #opt: adamw
+  weight_decay: 0.0
+  warmup_ratio: 0.06
+  adam_epsilon: 1.0e-6
+  no_decay: ["bias", "LayerNorm.weight"]
+  #use_slow_tokenizer: false
+  #add_space: false
+  #is_s2s: false
+  #pad_to_max_length: false
+  #eval_steps: 0
+  #num_bins: 15
+  #load_model_path: null
+  #load_lora_path: null
+  #log_path: scalabl-winogrande_s-sample10-eps0.05-kllr0.2-beta0.2-gamma8-seed0-id
+  #testing_set: val
+  #ood_ori_dataset: null
+  #
+  #log_path: scalabl-winogrande_s-sample10-eps0.05-kllr0.2-beta0.2-gamma8-seed0-id
+
+dataset:
+  use_slow_tokenizer: false
+  add_space: false
+  is_s2s: false
+  pad_to_max_length: false
+  testing_set: val
+
+
+# LoRA-specific arguments
+#lora_r: 8
+#lora_alpha: 16
+#lora_dropout: 0.0
+#apply_classhead_lora: true
+#apply_qkv_head_lora: false
+
+# Management arguments
+seed: 0
+evaluate: true
+checkpoint: true
+checkpoint_name: scalabl-winogrande_s-sample10-eps0.05-kllr0.2-beta0.2-gamma8-seed0-id
+
+# WandB (Weights & Biases) arguments
+nowand: false
+wandb_entity: your_wandb_entity # Please replace with your os.environ["WANDB_ENTITY"] value
+wandb_project: "ScalaBL-Qwen7B-id"
+wandb_name: scalabl-winogrande_s-sample10-eps0.05-kllr0.2-beta0.2-gamma8-seed0-id
+
+# Bayesian-specific arguments (inferred from script, not present in the provided parser)
+bayes:
+  klreweighting: true
+  eps: 0.05
+  beta: 0.2
+  gamma: 8
+  kllr: 0.2
+  datasetrescaling: true
+  train_n_samples: 1
+  eval_n_samples: 1
+  eval_n_samples_final: 10
+
+lora_config:
+  task_type: CAUSAL_LM
+  inference_mode: false
+  r: 8
+  lora_alpha: 16
+  lora_dropout: 0.0
+  target_modules: ["q_proj", "v_proj", "lm_head"]
+  #target_modules = ["q_proj", "v_proj", "lm_head"]
+        #inference_mode=False,
+        #r=args.lora_r,
+        #lora_alpha=args.lora_alpha,
+        #lora_dropout=args.lora_dropout,
+        #target_modules=target_modules,
+    #)
+

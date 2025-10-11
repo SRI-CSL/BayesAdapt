@@ -1,0 +1,13 @@
+defaults:
+  - dataset: default
+  - optim: default
+  - lora: default
+  - wandb: default
+  - _self_
+
+model: Qwen/Qwen2.5-7B
+n_train_samples: 1
+n_test_samples: 10
+save_folder: log
+gpu_id: 0
+seed: 0

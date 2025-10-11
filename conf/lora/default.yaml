@@ -1,0 +1,16 @@
+config:
+  _target_: peft.LoraConfig
+  task_type: CAUSAL_LM
+  inference_mode: false
+  r: 8
+  lora_alpha: 16
+  lora_dropout: 0.0
+  target_modules: 
+    - q_proj
+    - v_proj
+    - lm_head
+
+wrapper:
+  _partial_: true
+  _target_: lorawrappers.ScalablLoraWrapper
+  eps: 0.05
