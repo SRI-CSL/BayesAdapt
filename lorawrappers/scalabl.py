@@ -79,7 +79,7 @@ class ScalaBLLinear(nn.Module):
 
 
 class ScalablLoraWrapper(VILoraWrapper):
-    def __init__(self, lora_layer: LoraLayer, bayes_eps: float = 0.05):
+    def __init__(self, lora_layer: LoraLayer, eps: float = 0.05):
         super().__init__(lora_layer)
         # self.bayes_eps = bayes_eps
 
@@ -88,6 +88,6 @@ class ScalablLoraWrapper(VILoraWrapper):
             self.lora_A[adapter_name] = ScalaBLLinear(
                 in_features=self.lora_A[adapter_name].in_features,
                 out_features=self.lora_A[adapter_name].out_features,
-                s_sigma_init_eps=bayes_eps,
+                s_sigma_init_eps=eps,
                 blobsample=True,
             )
