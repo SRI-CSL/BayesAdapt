@@ -6,11 +6,11 @@ class BLoBNLLScheduler(_LRScheduler):
     def __init__(
         self,
         optimizer: torch.optim.Optimizer,
-        warmup_steps: int,
+        warmup_ratio: float,
         total_steps: int,
         last_epoch: int = -1,
     ):
-        self.warmup_steps = max(1, warmup_steps)
+        self.warmup_steps   = int(total_steps * warmup_ratio)
         self.total_steps = max(total_steps, self.warmup_steps + 1)
         super().__init__(optimizer, last_epoch)
 
@@ -31,14 +31,14 @@ class BLoBNLLScheduler(_LRScheduler):
 class BLoBKLScheduler(_LRScheduler):
     def __init__(self,
                  optimizer: torch.optim.Optimizer,
-                 warmup_steps: int,
+                 warmup_ratio: float,
                  total_steps: int,
                  num_samples: int, #size of dataset
                  batch_size: int,
                  gamma: float,
                  use_exponential: bool = True,
                  last_epoch: int = -1):
-        self.warmup_steps   = warmup_steps
+        self.warmup_steps   = int(total_steps * warmup_ratio)
         self.total_steps    = total_steps
         self.M = int(100 * (num_samples ** (math.pi / gamma)) / batch_size)
 
