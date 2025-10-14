@@ -91,7 +91,8 @@ class ScalaBL(WrapperBase):
         """
         for name, child in module.named_children():
             if isinstance(child, LoraLayer) and isinstance(child, Linear):
-                module._modules[name] = ScalablLoraWrapper(child, bayes_eps=self.blobconfig.bayes_eps)
+                #module._modules[name] = ScalablLoraWrapper(child, eps=self.blobconfig.bayes_eps)
+                module._modules[name] = BlobLoraWrapper(child, bayes_eps=self.blobconfig.bayes_eps)
                 #module._modules[name] = MCDropoutLoraWrapper(child, bayes_eps=self.blobconfig.bayes_eps)
                 #module._modules[name] = MCDropoutLoraWrapper(child)
                 #module._modules[name] = DeepEnsembleLoraWrapper(child)
@@ -341,7 +342,8 @@ class ScalaBL(WrapperBase):
 
         self.nll_scheduler = BLoBNLLScheduler(
             self.nll_optimizer,
-            warmup_steps=warmup_steps,
+            # warmup_steps=warmup_steps,
+            warmup_ratio=self.args.warmup_ratio,
             total_steps=self.args.max_train_steps,
         )
         
@@ -351,7 +353,8 @@ class ScalaBL(WrapperBase):
         )
         self.kl_scheduler = BLoBKLScheduler(
             self.kl_optimizer,
-            warmup_steps=warmup_steps,
+            # warmup_steps=warmup_steps,
+            warmup_ratio=self.args.warmup_ratio,
             total_steps=self.args.max_train_steps,
             num_samples=dataset.num_samples,
             batch_size=self.args.batch_size,
