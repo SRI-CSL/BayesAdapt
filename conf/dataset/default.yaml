@@ -1,4 +1,4 @@
-_target_: dataset.S2SDataset_Classification.S2SDataset_Classification
+_target_: dataset.S2SDataset_Classification_hydra.S2SDataset_Classification
 name: winogrande_s
 testing_set: val
 add_space: False

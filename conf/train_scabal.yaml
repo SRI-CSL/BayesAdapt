@@ -1,0 +1,12 @@
+defaults:
+  - default #root default
+  - lora/wrapper/scalabl
+  - _self_
+
+optim.kl_optimizer.lr: 0.2
+
+#lora:
+  #wrapper:
+    #_partial_: true
+    #_target_: lorawrappers.ScalablLoraWrapper
+    #eps: 0.05

@@ -6,11 +6,11 @@ config:
   lora_alpha: 16
   lora_dropout: 0.0
   target_modules: 
+    - lm_head
     - q_proj
     - v_proj
-    - lm_head
 
-wrapper:
-  _partial_: true
-  _target_: lorawrappers.ScalablLoraWrapper
-  eps: 0.05
+#wrapper:
+  #_partial_: true
+  #_target_: lorawrappers.ScalablLoraWrapper
+  #eps: 0.05

@@ -1,0 +1,15 @@
+defaults:
+  - default #conf/default.yaml
+  - lora/wrapper: blob
+  - _self_
+
+optim:
+  kl_optimizer:
+    lr: 0.01
+
+#lora:
+  #wrapper:
+    #_partial_: true
+    #_target_: lorawrappers.BlobLoraWrapper
+    #bayes_eps: 0.05
+    #bayes_beta: 0.2
