@@ -7,42 +7,45 @@ from hydra.utils import instantiate
 from tqdm import tqdm, trange
 from accelerate.utils import set_seed
 from peft import get_peft_model
-from transformers import AutoModelForCausalLM, AutoTokenizer #, BitsAndBytesConfig
+from transformers import AutoModelForCausalLM, AutoTokenizer, BitsAndBytesConfig
 from lorawrappers.utils import wrap_lora_layers 
 from torchmetrics.functional import calibration_error, accuracy
 
 @hydra.main(config_path="../conf", config_name="default", version_base=None)
 def main(cfg):
     print(cfg)
-    tokenizer = AutoTokenizer.from_pretrained(cfg.model, trust_remote_code=True)
+    tokenizer = AutoTokenizer.from_pretrained(cfg.hf_model, trust_remote_code=True)
     dataset = instantiate(cfg.dataset, tokenizer)
     dataset.get_loaders()
     test_loader = dataset.test_dataloader
     target_ids = dataset.target_ids.squeeze(-1)
 
     device = torch.device(f"cuda:{cfg.gpu_id}" if torch.cuda.is_available() else "cpu")
+    # bnb_config = BitsAndBytesConfig(load_in_8bit=True)
     model = AutoModelForCausalLM.from_pretrained(
-        cfg.model, 
+        cfg.hf_model, 
         quantization_config=None,
         device_map=device,
         torch_dtype=torch.bfloat16
     )
-    peft_config = instantiate(cfg.lora.config)
-    model = get_peft_model(model, peft_config)
-    wrapper_fn = instantiate(cfg.lora.wrapper)
-    wrap_lora_layers(model, wrapper_fn)
-    model = model.to(device) #make sure modified layers are on the right device
-    sd = torch.load(os.path.join(cfg.logdir, "state_dict.pt"))
-    model.load_state_dict(sd, strict=False)
+
+    if cfg.lora is not None:
+        peft_config = instantiate(cfg.lora.config)
+        model = get_peft_model(model, peft_config)
+        if cfg.lora.wrapper is not None:
+            wrapper_fn = instantiate(cfg.lora.wrapper)
+            wrap_lora_layers(model, wrapper_fn)
+            model = model.to(device) #make sure modified layers are on the right device
+        sd_path = os.path.join(cfg.logdir, "state_dict.pt")
+        if os.path.exists(sd_path):
+            sd = torch.load(sd_path)
+            model.load_state_dict(sd, strict=False)
     model.eval()
 
+    results = []
     start_event = torch.cuda.Event(enable_timing=True)
     end_event = torch.cuda.Event(enable_timing=True)
-
-
-    seeds = torch.arange(cfg.seed, cfg.seed + cfg.num_eval_trials)
-    
-    results = []
+    seeds = torch.arange(cfg.seed, cfg.seed + cfg.n_eval_trials)
     for seed in seeds:
         set_seed(seed.item())
         test_probs, test_labels, elapsed_times, peak_memories = [], [], [], []
@@ -72,9 +75,9 @@ def main(cfg):
         test_preds = test_probs.argmax(dim=-1)
         test_labels = torch.cat(test_labels, dim=0)
 
-        #exclude the first result as it has the cuda warmup time
-        elapsed_times = torch.tensor(elapsed_times[1:]) / 1000.0 #convert to seconds
-        peak_memories = torch.tensor(peak_memories[1:]) / (1024 ** 3) #convert to GB
+        #exclude the first couple results to skip warmup effects
+        elapsed_times = torch.tensor(elapsed_times[5:]) / 1000.0 #convert to seconds
+        peak_memories = torch.tensor(peak_memories[5:]) / (1024 ** 3) #convert to GB
         
         result = {'seed': seed.item()}
         result['elapsed_time'] = {
@@ -94,11 +97,12 @@ def main(cfg):
         result['test_ece'] = calibration_error(test_probs, test_labels, n_bins=15, **metric_kwargs).item()
         result['test_nll'] = F.nll_loss(test_logprobs, test_labels, reduction="mean").item()
         results.append(result)
+        print(result)
     
     json_path = os.path.join(cfg.logdir, "results.json")
     with open(json_path, "w") as f:
-        json.dump(result, f)
-    print(result)
+        json.dump(results, f)
+    print(results)
     
 if __name__ == "__main__":
     main()

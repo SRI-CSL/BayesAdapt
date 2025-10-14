@@ -23,7 +23,7 @@ def main(cfg):
     # os.putenv("MKL_SERVICE_FORCE_INTEL", "1")
     # os.putenv("NPY_MKL_FORCE_INTEL", "1")
     # accelerator = Accelerator()
-    tokenizer = AutoTokenizer.from_pretrained(cfg.model, trust_remote_code=True)
+    tokenizer = AutoTokenizer.from_pretrained(cfg.hf_model, trust_remote_code=True)
     dataset = instantiate(cfg.dataset, tokenizer)
     dataset.get_loaders()
     train_loader = dataset.train_dataloader
@@ -31,26 +31,19 @@ def main(cfg):
 
     device = torch.device(f"cuda:{cfg.gpu_id}" if torch.cuda.is_available() else "cpu")
     model = AutoModelForCausalLM.from_pretrained(
-        cfg.model, 
+        cfg.hf_model, 
         quantization_config=None,
         device_map=device,
         torch_dtype=torch.bfloat16
     )
     peft_config = instantiate(cfg.lora.config)
-    # peft_config.target_modules = list(peft_config.target_modules) #make sure it's a list, otherwise save_pretrained fails
-    # peft_config = LoraConfig(
-        # task_type="CAUSAL_LM",
-        # inference_mode=False,
-        # r=cfg.lora.config.r,
-        # lora_alpha=cfg.lora.config.lora_alpha,
-        # lora_dropout=cfg.lora.config.lora_dropout,
-        # target_modules=list(cfg.lora.config.target_modules)
-    # )
+    peft_config.target_modules = list(peft_config.target_modules) #make sure it's a list, otherwise save_pretrained fails
 
     model = get_peft_model(model, peft_config)
-    wrapper_fn = instantiate(cfg.lora.wrapper)
-    wrap_lora_layers(model, wrapper_fn)
-    model = model.to(device) #make sure modified layers are on the right device
+    if cfg.lora.wrapper is not None:
+        wrapper_fn = instantiate(cfg.lora.wrapper)
+        wrap_lora_layers(model, wrapper_fn)
+        model = model.to(device) #make sure modified layers are on the right device
 
     decay_params, no_decay_params = [], []
     for n, p in model.named_parameters():
@@ -111,7 +104,6 @@ def main(cfg):
             ).reshape(B, num_samples)
             nll_loss = nll_vals.mean()
             nll_loss.backward()
-            # accelerator.backward(nll_loss)
             nll_optimizer.step()
             nll_optimizer.zero_grad()
             nll_scheduler.step()
@@ -125,12 +117,12 @@ def main(cfg):
                 kl_loss = torch.sum(torch.stack(kl_divs), dim=0)
                 kl_loss.backward()
                 pi = kl_scheduler.last_pi
-                # accelerator.backward(kl_loss)
                 kl_optimizer.step()
                 kl_optimizer.zero_grad()
                 kl_scheduler.step()
             else:
-                kl = torch.tensor(0.0).to(device)
+                kl_loss = torch.tensor(0.0).to(device)
+                pi = torch.tensor(0.0).to(device)
 
             assert not math.isnan(nll_loss)
             assert not math.isnan(kl_loss)
@@ -155,73 +147,13 @@ def main(cfg):
             })
 
 
-    #for the Qwen models, the lm_head and embedding layers are tied
-    #setting save_embedding_layers to False ensures that base embedding weights arent saved needlessly
-    #the lora weights for the lm_head/embedding layers are still saved 
-    # save_folder = f"checkpoints/{args.modelwrapper}/{args.model}/{args.dataset}/{args.checkpoint_name}"
     if not os.path.exists(cfg.logdir):
         os.makedirs(cfg.logdir)
     
-    # import ipdb; ipdb.set_trace() # noqa
     sd = model.state_dict()
     sd = {k: v for k, v in sd.items() if 'lora_' in k}
     torch.save(sd, os.path.join(cfg.logdir, "state_dict.pt"))
-
-    # model.base_model = accelerator.unwrap_model(model.base_model)
-    # model.save_pretrained(cfg.logdir, save_function=accelerator.save, save_embedding_layers=False)
-    # import ipdb; ipdb.set_trace() # noqa
-    #model.save_pretrained(cfg.logdir, save_embedding_layers=False)
     wandb.finish()
     
-    # test_loader = dataset.test_dataloader
-    # test_loader = accelerator.prepare(test_loader)
-    # model.eval()
-
-    # metric_kwargs = {'task': 'multiclass', 'num_classes': len(target_ids)}
-    # acc_metric = Accuracy(**metric_kwargs).to(device)
-    # ece_metric = CalibrationError(**metric_kwargs).to(device)
-    # test_probs, test_labels = [], []
-    # for step, batch in enumerate(tqdm(test_loader, desc="Testing")):
-        # batch = [b.to(device) for b in batch]
-        # inputs, labels, _ = batch
-
-        # assert cfg.n_test_samples == 10
-        
-        # logits = []
-        # for i in range(cfg.n_test_samples):
-            # with torch.no_grad() and torch.inference_mode():
-                # logits_i = model(**inputs).logits[:, -1, target_ids]
-            # logits.append(logits_i)
-        # logits = torch.stack(logits, dim=1) # (batch_size, n_samples, n_classes)
-        # probs = torch.softmax(logits, dim=-1).mean(dim=1) # (batch_size, n_classes)
-        
-        # acc_metric.update(probs, labels)
-        # ece_metric.update(probs, labels)
-
-        # test_probs.append(probs.cpu())
-        # test_labels.append(labels.cpu())
-    
-    # print(acc_metric.compute())
-    # print(ece_metric.compute())
-    # test_probs = torch.cat(test_probs, dim=0)
-    # test_logprobs = torch.log(test_probs)
-    # test_preds = test_probs.argmax(dim=-1)
-    # test_labels = torch.cat(test_labels, dim=0)
-
-    # result = {}
-    # result['test_acc'] = (test_preds == test_labels).float().mean().item()
-    # result['test_ece'] = calibration_error(
-        # test_probs, test_labels, 
-        # task='multiclass', 
-        # num_classes=len(target_ids),
-        # n_bins=15
-    # ).item()
-    # result['test_nll'] = F.nll_loss(test_logprobs, test_labels, reduction="mean").item()
-    # print(result)
-
-
-
-
-
 if __name__ == "__main__":
     main()

@@ -19,26 +19,26 @@ def kl_div_stable(mu_q, sigma_q, mu_p, sigma_p):
 
 class BlobLinear(nn.Module):
     def __init__(self, in_features: int, out_features: int, bias: bool = False,
-                 bayes_eps: float = 0.2, bayes_beta: float = 0.2, blobsample: bool = False):
+                 eps: float = 0.05, beta: float = 0.2, blobsample: bool = False):
         super().__init__()
         self.in_features = in_features
         self.out_features = out_features
         self.rank = min(in_features, out_features)
         self.weight = nn.Linear(in_features, out_features, bias=False).weight
         self.lora_A_rho = nn.Parameter(torch.zeros(self.rank, self.in_features))
-        if bayes_eps < 0:
+        if eps < 0:
             nn.init.uniform_(
                 self.lora_A_rho,
-                bayes_eps - 1,
-                bayes_eps,
+                eps - 1,
+                eps,
             )
         else:
             nn.init.uniform_(
                 self.lora_A_rho,
-                bayes_eps / math.sqrt(2),
-                bayes_eps,
+                eps / math.sqrt(2),
+                eps,
             )
-        self.bayes_beta = bayes_beta
+        self.beta = beta
         self.blobsample = blobsample
     
     def forward(self, x, lora_B, scaling):
@@ -99,22 +99,18 @@ class BlobLinear(nn.Module):
     def kl_div(self) -> torch.Tensor:
         sigma_weight = self.lora_A_rho ** 2
         kl = kl_div_stable(
-            self.weight, sigma_weight, 0, self.bayes_beta
+            self.weight, sigma_weight, 0, self.beta
         )
         return kl
 
 class BlobLoraWrapper(VILoraWrapper):
-    def __init__(self, lora_layer: LoraLayer, bayes_eps: float = 0.05, bayes_beta: float = 0.2):
+    def __init__(self, lora_layer: LoraLayer, eps: float = 0.05, beta: float = 0.2):
         super().__init__(lora_layer)
-        # self.bayes_eps = bayes_eps
-        # self.bayes_beta = bayes_beta
-
-    # def wrap(self, *args: Any, **kwargs: Any) -> None:
         for adapter_name in self.active_adapters:
             self.lora_A[adapter_name] = BlobLinear(
                 in_features=self.lora_A[adapter_name].in_features,
                 out_features=self.lora_A[adapter_name].out_features,
-                bayes_eps=bayes_eps,
-                bayes_beta=bayes_beta,
+                eps=eps,
+                beta=beta,
                 blobsample=True,
             )
