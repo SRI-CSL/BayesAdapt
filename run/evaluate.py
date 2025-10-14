@@ -1,6 +1,5 @@
 import os
 import json
-import numpy  # needed (don't change it)
 import torch
 import torch.nn.functional as F
 import hydra
@@ -10,15 +9,11 @@ from accelerate.utils import set_seed
 from peft import get_peft_model
 from transformers import AutoModelForCausalLM, AutoTokenizer #, BitsAndBytesConfig
 from lorawrappers.utils import wrap_lora_layers 
-from torchmetrics.functional import calibration_error
-from torchmetrics import Accuracy, CalibrationError
-from accelerate import Accelerator
+from torchmetrics.functional import calibration_error, accuracy
 
 @hydra.main(config_path="../conf", config_name="default", version_base=None)
 def main(cfg):
     print(cfg)
-    set_seed(cfg.seed)
-    #accelerator = Accelerator()
     tokenizer = AutoTokenizer.from_pretrained(cfg.model, trust_remote_code=True)
     dataset = instantiate(cfg.dataset, tokenizer)
     dataset.get_loaders()
@@ -39,57 +34,67 @@ def main(cfg):
     model = model.to(device) #make sure modified layers are on the right device
     sd = torch.load(os.path.join(cfg.logdir, "state_dict.pt"))
     model.load_state_dict(sd, strict=False)
-    # sd = model.state_dict()
-    # keys = list(sd.keys())
-    # for k in keys:
-        # print(k, sd[k].shape)
-    # import ipdb; ipdb.set_trace() # noqa
-    # model, test_loader = accelerator.prepare(model, test_loader)
-
-    # import ipdb; ipdb.set_trace() # noqa
-    # model.load_adapter(cfg.logdir, "default")
     model.eval()
 
+    start_event = torch.cuda.Event(enable_timing=True)
+    end_event = torch.cuda.Event(enable_timing=True)
+
+
+    seeds = torch.arange(cfg.seed, cfg.seed + cfg.num_eval_trials)
     
-    metric_kwargs = {'task': 'multiclass', 'num_classes': len(target_ids)}
-    acc_metric = Accuracy(**metric_kwargs).to(device)
-    ece_metric = CalibrationError(**metric_kwargs).to(device)
+    results = []
+    for seed in seeds:
+        set_seed(seed.item())
+        test_probs, test_labels, elapsed_times, peak_memories = [], [], [], []
+        for batch in tqdm(test_loader, desc="Testing"):
+            batch = [b.to(device) for b in batch]
+            inputs, labels, _ = batch
+            logits = []
+            
+            torch.cuda.reset_peak_memory_stats(device)
+            start_event.record()
+            for i in range(cfg.n_test_samples):
+                with torch.no_grad() and torch.inference_mode():
+                    logits_i = model(**inputs).logits[:, -1, target_ids]
+                logits.append(logits_i)
+            end_event.record()
+            torch.cuda.synchronize()
+            peak_memories.append(torch.cuda.max_memory_allocated(device))
+            elapsed_times.append(start_event.elapsed_time(end_event))
 
-    test_probs, test_labels = [], []
-    for step, batch in enumerate(tqdm(test_loader, desc="Testing")):
-        batch = [b.to(device) for b in batch]
-        inputs, labels, _ = batch
+            logits = torch.stack(logits, dim=1) # (batch_size, n_samples, n_classes)
+            probs = torch.softmax(logits, dim=-1).mean(dim=1) # (batch_size, n_classes)
+            test_probs.append(probs.cpu())
+            test_labels.append(labels.cpu())
         
-        logits = []
-        for i in range(cfg.n_test_samples):
-            with torch.no_grad() and torch.inference_mode():
-                logits_i = model(**inputs).logits[:, -1, target_ids]
-            logits.append(logits_i)
-        logits = torch.stack(logits, dim=1) # (batch_size, n_samples, n_classes)
-        probs = torch.softmax(logits, dim=-1).mean(dim=1) # (batch_size, n_classes)
-        
-        acc_metric.update(probs, labels)
-        ece_metric.update(probs, labels)
+        test_probs = torch.cat(test_probs, dim=0)
+        test_logprobs = torch.log(test_probs)
+        test_preds = test_probs.argmax(dim=-1)
+        test_labels = torch.cat(test_labels, dim=0)
 
-        test_probs.append(probs.cpu())
-        test_labels.append(labels.cpu())
+        #exclude the first result as it has the cuda warmup time
+        elapsed_times = torch.tensor(elapsed_times[1:]) / 1000.0 #convert to seconds
+        peak_memories = torch.tensor(peak_memories[1:]) / (1024 ** 3) #convert to GB
+        
+        result = {'seed': seed.item()}
+        result['elapsed_time'] = {
+            'mean': elapsed_times.mean().item(),
+            'std': elapsed_times.std().item(),
+            'min': elapsed_times.min().item(),
+            'max': elapsed_times.max().item(),
+        }
+        result['peak_memory'] = {
+            'mean': peak_memories.mean().item(),
+            'std': peak_memories.std().item(),
+            'min': peak_memories.min().item(),
+            'max': peak_memories.max().item(),
+        }
+        metric_kwargs = {'task': 'multiclass', 'num_classes': len(target_ids)}
+        result['test_acc'] = accuracy(test_preds, test_labels, **metric_kwargs).item()
+        result['test_ece'] = calibration_error(test_probs, test_labels, n_bins=15, **metric_kwargs).item()
+        result['test_nll'] = F.nll_loss(test_logprobs, test_labels, reduction="mean").item()
+        results.append(result)
     
-    print(acc_metric.compute())
-    print(ece_metric.compute())
-    test_probs = torch.cat(test_probs, dim=0)
-    test_logprobs = torch.log(test_probs)
-    test_preds = test_probs.argmax(dim=-1)
-    test_labels = torch.cat(test_labels, dim=0)
-
-    result = {}
-    result['test_acc'] = (test_preds == test_labels).float().mean().item()
-    result['test_ece'] = calibration_error(
-        test_probs, test_labels, 
-        task='multiclass', 
-        num_classes=len(target_ids),
-        n_bins=15
-    ).item()
-    result['test_nll'] = F.nll_loss(test_logprobs, test_labels, reduction="mean").item()
     json_path = os.path.join(cfg.logdir, "results.json")
     with open(json_path, "w") as f:
         json.dump(result, f)

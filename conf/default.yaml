@@ -11,3 +11,4 @@ n_test_samples: 10
 logdir: logs/result
 gpu_id: 0
 seed: 0
+num_eval_trials: 1
