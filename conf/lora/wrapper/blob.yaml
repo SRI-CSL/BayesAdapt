@@ -1,4 +1,4 @@
 _partial_: true
 _target_: lorawrappers.BlobLoraWrapper
-bayes_eps: 0.05
-bayes_beta: 0.2
+eps: 0.05
+beta: 0.2

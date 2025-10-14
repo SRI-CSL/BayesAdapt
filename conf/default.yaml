@@ -1,14 +1,18 @@
 defaults:
   - dataset: default
-  - lora: default
   - optim: default
-  - wandb: default
   - _self_
 
-model: Qwen/Qwen2.5-7B
+lora: null
+
+hf_model: Qwen/Qwen2.5-7B
 n_train_samples: 1
-n_test_samples: 10
-logdir: logs/result
+n_test_samples: 1
+n_eval_trials: 1
 gpu_id: 0
 seed: 0
-num_eval_trials: 1
+
+logdir: logs/result
+wandb:
+  project: bayesadapt
+  name: run
