@@ -18,7 +18,7 @@ from accelerate import Accelerator
 def main(cfg):
     print(cfg)
     set_seed(cfg.seed)
-    accelerator = Accelerator()
+    #accelerator = Accelerator()
     tokenizer = AutoTokenizer.from_pretrained(cfg.model, trust_remote_code=True)
     dataset = instantiate(cfg.dataset, tokenizer)
     dataset.get_loaders()
@@ -44,7 +44,7 @@ def main(cfg):
     # for k in keys:
         # print(k, sd[k].shape)
     # import ipdb; ipdb.set_trace() # noqa
-    model, test_loader = accelerator.prepare(model, test_loader)
+    # model, test_loader = accelerator.prepare(model, test_loader)
 
     # import ipdb; ipdb.set_trace() # noqa
     # model.load_adapter(cfg.logdir, "default")

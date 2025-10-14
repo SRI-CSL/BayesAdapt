@@ -20,9 +20,9 @@ from torchmetrics import Accuracy, CalibrationError
 def main(cfg):
     print(cfg)
     set_seed(cfg.seed)
-    os.putenv("MKL_SERVICE_FORCE_INTEL", "1")
-    os.putenv("NPY_MKL_FORCE_INTEL", "1")
-    accelerator = Accelerator()
+    # os.putenv("MKL_SERVICE_FORCE_INTEL", "1")
+    # os.putenv("NPY_MKL_FORCE_INTEL", "1")
+    # accelerator = Accelerator()
     tokenizer = AutoTokenizer.from_pretrained(cfg.model, trust_remote_code=True)
     dataset = instantiate(cfg.dataset, tokenizer)
     dataset.get_loaders()
@@ -36,16 +36,16 @@ def main(cfg):
         device_map=device,
         torch_dtype=torch.bfloat16
     )
-    # peft_config = instantiate(cfg.lora.config)
-    # peft_config.target_modules = set(peft_config.target_modules) #make sure it's a list, otherwise save_pretrained fails
-    peft_config = LoraConfig(
-        task_type="CAUSAL_LM",
-        inference_mode=False,
-        r=cfg.lora.config.r,
-        lora_alpha=cfg.lora.config.lora_alpha,
-        lora_dropout=cfg.lora.config.lora_dropout,
-        target_modules=list(cfg.lora.config.target_modules)
-    )
+    peft_config = instantiate(cfg.lora.config)
+    # peft_config.target_modules = list(peft_config.target_modules) #make sure it's a list, otherwise save_pretrained fails
+    # peft_config = LoraConfig(
+        # task_type="CAUSAL_LM",
+        # inference_mode=False,
+        # r=cfg.lora.config.r,
+        # lora_alpha=cfg.lora.config.lora_alpha,
+        # lora_dropout=cfg.lora.config.lora_dropout,
+        # target_modules=list(cfg.lora.config.target_modules)
+    # )
 
     model = get_peft_model(model, peft_config)
     wrapper_fn = instantiate(cfg.lora.wrapper)
@@ -69,9 +69,9 @@ def main(cfg):
     kl_optimizer = instantiate(cfg.optim.kl_optimizer, model.parameters())
     kl_scheduler = instantiate(cfg.optim.kl_scheduler, kl_optimizer, num_samples=dataset.num_samples)
 
-    model, train_loader, nll_optimizer, nll_scheduler, kl_optimizer, kl_scheduler = accelerator.prepare(
-        model, train_loader, nll_optimizer, nll_scheduler, kl_optimizer, kl_scheduler
-    )
+    # model, train_loader, nll_optimizer, nll_scheduler, kl_optimizer, kl_scheduler = accelerator.prepare(
+        # model, train_loader, nll_optimizer, nll_scheduler, kl_optimizer, kl_scheduler
+    # )
 
     n_epochs = math.ceil(cfg.optim.max_train_steps / len(train_loader))
     earlystop_n_epochs = 0
@@ -110,8 +110,8 @@ def main(cfg):
                 reduction="none"
             ).reshape(B, num_samples)
             nll_loss = nll_vals.mean()
-            # nll_loss.backward()
-            accelerator.backward(nll_loss)
+            nll_loss.backward()
+            # accelerator.backward(nll_loss)
             nll_optimizer.step()
             nll_optimizer.zero_grad()
             nll_scheduler.step()
@@ -123,9 +123,9 @@ def main(cfg):
 
             if len(kl_divs) > 0:
                 kl_loss = torch.sum(torch.stack(kl_divs), dim=0)
-                # kl_loss.backward()
-                pi = kl_scheduler.scheduler.last_pi
-                accelerator.backward(kl_loss)
+                kl_loss.backward()
+                pi = kl_scheduler.last_pi
+                # accelerator.backward(kl_loss)
                 kl_optimizer.step()
                 kl_optimizer.zero_grad()
                 kl_scheduler.step()
@@ -173,52 +173,51 @@ def main(cfg):
     #model.save_pretrained(cfg.logdir, save_embedding_layers=False)
     wandb.finish()
     
-    test_loader = dataset.test_dataloader
-    test_loader = accelerator.prepare(test_loader)
-    model.eval()
+    # test_loader = dataset.test_dataloader
+    # test_loader = accelerator.prepare(test_loader)
+    # model.eval()
 
-    metric_kwargs = {'task': 'multiclass', 'num_classes': len(target_ids)}
-    acc_metric = Accuracy(**metric_kwargs).to(device)
-    ece_metric = CalibrationError(**metric_kwargs).to(device)
-    test_probs, test_labels = [], []
-    for step, batch in enumerate(tqdm(test_loader, desc="Testing")):
-        batch = [b.to(device) for b in batch]
-        inputs, labels, _ = batch
+    # metric_kwargs = {'task': 'multiclass', 'num_classes': len(target_ids)}
+    # acc_metric = Accuracy(**metric_kwargs).to(device)
+    # ece_metric = CalibrationError(**metric_kwargs).to(device)
+    # test_probs, test_labels = [], []
+    # for step, batch in enumerate(tqdm(test_loader, desc="Testing")):
+        # batch = [b.to(device) for b in batch]
+        # inputs, labels, _ = batch
 
-        assert cfg.n_test_samples == 10
+        # assert cfg.n_test_samples == 10
         
-        logits = []
-        for i in range(cfg.n_test_samples):
-            with torch.no_grad() and torch.inference_mode():
-                logits_i = model(**inputs).logits[:, -1, target_ids]
-            logits.append(logits_i)
-        logits = torch.stack(logits, dim=1) # (batch_size, n_samples, n_classes)
-        probs = torch.softmax(logits, dim=-1).mean(dim=1) # (batch_size, n_classes)
+        # logits = []
+        # for i in range(cfg.n_test_samples):
+            # with torch.no_grad() and torch.inference_mode():
+                # logits_i = model(**inputs).logits[:, -1, target_ids]
+            # logits.append(logits_i)
+        # logits = torch.stack(logits, dim=1) # (batch_size, n_samples, n_classes)
+        # probs = torch.softmax(logits, dim=-1).mean(dim=1) # (batch_size, n_classes)
         
-        acc_metric.update(probs, labels)
-        ece_metric.update(probs, labels)
+        # acc_metric.update(probs, labels)
+        # ece_metric.update(probs, labels)
 
-        test_probs.append(probs.cpu())
-        test_labels.append(labels.cpu())
+        # test_probs.append(probs.cpu())
+        # test_labels.append(labels.cpu())
     
-    print(acc_metric.compute())
-    print(ece_metric.compute())
-    test_probs = torch.cat(test_probs, dim=0)
-    test_logprobs = torch.log(test_probs)
-    test_preds = test_probs.argmax(dim=-1)
-    test_labels = torch.cat(test_labels, dim=0)
+    # print(acc_metric.compute())
+    # print(ece_metric.compute())
+    # test_probs = torch.cat(test_probs, dim=0)
+    # test_logprobs = torch.log(test_probs)
+    # test_preds = test_probs.argmax(dim=-1)
+    # test_labels = torch.cat(test_labels, dim=0)
 
-    result = {}
-    result['test_acc'] = (test_preds == test_labels).float().mean().item()
-    result['test_ece'] = calibration_error(
-        test_probs, test_labels, 
-        task='multiclass', 
-        num_classes=len(target_ids),
-        n_bins=15
-    ).item()
-    result['test_nll'] = F.nll_loss(test_logprobs, test_labels, reduction="mean").item()
-    # json_path = os.path.join(cfg.save_folder, "results.json")
-    print(result)
+    # result = {}
+    # result['test_acc'] = (test_preds == test_labels).float().mean().item()
+    # result['test_ece'] = calibration_error(
+        # test_probs, test_labels, 
+        # task='multiclass', 
+        # num_classes=len(target_ids),
+        # n_bins=15
+    # ).item()
+    # result['test_nll'] = F.nll_loss(test_logprobs, test_labels, reduction="mean").item()
+    # print(result)
 
 
 
