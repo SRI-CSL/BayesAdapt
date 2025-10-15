@@ -24,7 +24,7 @@ class DeepEnsembleLoraWrapper(LoraWrapper):
             )
             self.lora_B[new_key] = copy.deepcopy(self.lora_B['default'])
             self.lora_dropout[new_key] = copy.deepcopy(self.lora_dropout['default'])
-            self.scaling[new_key] = self.scaling['default'] #jsut a scalar so no need to deepcopy
+            self.scaling[new_key] = self.scaling['default'] #just a scalar so no need to deepcopy
             self.lora_dropout[new_key] = copy.deepcopy(self.lora_dropout['default'])
         self.active_adapters = ['default']
         self.current_index = 0
