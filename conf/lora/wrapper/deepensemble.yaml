@@ -1,0 +1,3 @@
+_partial_: true
+_target_: lorawrappers.DeepEnsembleLoraWrapper
+ensemble_size: 10

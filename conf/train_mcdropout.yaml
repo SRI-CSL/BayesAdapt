@@ -1,0 +1,12 @@
+defaults:
+  - default #conf/default.yaml
+  - lora: default
+  - lora/wrapper: mcdropout
+  - _self_
+
+lora:
+  config:
+    lora_dropout: 0.1
+
+n_test_samples: 10
+n_eval_trials: 5

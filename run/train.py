@@ -1,14 +1,16 @@
 import os
 import numpy  # needed (don't change it)
 import math
+import json
 import torch
 import torch.nn.functional as F
 import wandb
 import hydra
 from hydra.utils import instantiate
+from omegaconf import OmegaConf
 from tqdm import tqdm, trange
 from accelerate.utils import set_seed
-from peft import get_peft_model, LoraConfig
+from peft import get_peft_model
 from lorawrappers import VILoraWrapper
 from transformers import AutoModelForCausalLM, AutoTokenizer #, BitsAndBytesConfig
 from lorawrappers.utils import wrap_lora_layers 
@@ -20,9 +22,11 @@ from torchmetrics import Accuracy, CalibrationError
 def main(cfg):
     print(cfg)
     set_seed(cfg.seed)
-    # os.putenv("MKL_SERVICE_FORCE_INTEL", "1")
-    # os.putenv("NPY_MKL_FORCE_INTEL", "1")
-    # accelerator = Accelerator()
+    os.makedirs(cfg.logdir, exist_ok=True)
+    yaml_str = OmegaConf.to_yaml(cfg)
+    with open(os.path.join(cfg.logdir, "config.yaml"), "w") as f:
+        f.write(yaml_str)
+
     tokenizer = AutoTokenizer.from_pretrained(cfg.hf_model, trust_remote_code=True)
     dataset = instantiate(cfg.dataset, tokenizer)
     dataset.get_loaders()
@@ -36,14 +40,19 @@ def main(cfg):
         device_map=device,
         torch_dtype=torch.bfloat16
     )
+
     peft_config = instantiate(cfg.lora.config)
     peft_config.target_modules = list(peft_config.target_modules) #make sure it's a list, otherwise save_pretrained fails
-
     model = get_peft_model(model, peft_config)
     if cfg.lora.wrapper is not None:
         wrapper_fn = instantiate(cfg.lora.wrapper)
         wrap_lora_layers(model, wrapper_fn)
         model = model.to(device) #make sure modified layers are on the right device
+    
+    model.print_trainable_parameters()
+    num_trainable_params, total_params = model.get_nb_trainable_parameters()
+    with open(os.path.join(cfg.logdir, "num_params.json"), "w") as f:
+        json.dump({'trainable': num_trainable_params, 'total': total_params}, f)
 
     decay_params, no_decay_params = [], []
     for n, p in model.named_parameters():
@@ -59,8 +68,9 @@ def main(cfg):
 
     nll_optimizer = instantiate(cfg.optim.nll_optimizer, params)
     nll_scheduler = instantiate(cfg.optim.nll_scheduler, nll_optimizer)
-    kl_optimizer = instantiate(cfg.optim.kl_optimizer, model.parameters())
-    kl_scheduler = instantiate(cfg.optim.kl_scheduler, kl_optimizer, num_samples=dataset.num_samples)
+    if 'kl_optimizer' in cfg.optim:
+        kl_optimizer = instantiate(cfg.optim.kl_optimizer, model.parameters())
+        kl_scheduler = instantiate(cfg.optim.kl_scheduler, kl_optimizer, num_samples=dataset.num_samples)
 
     # model, train_loader, nll_optimizer, nll_scheduler, kl_optimizer, kl_scheduler = accelerator.prepare(
         # model, train_loader, nll_optimizer, nll_scheduler, kl_optimizer, kl_scheduler
@@ -107,13 +117,14 @@ def main(cfg):
             nll_optimizer.step()
             nll_optimizer.zero_grad()
             nll_scheduler.step()
+            
 
-            kl_divs = []
-            for module in model.modules():
-                if isinstance(module, VILoraWrapper):
-                    kl_divs.append(module.kl_div)
+            if 'kl_optimizer' in cfg.optim:
+                kl_divs = []
+                for module in model.modules():
+                    if isinstance(module, VILoraWrapper):
+                        kl_divs.append(module.kl_div)
 
-            if len(kl_divs) > 0:
                 kl_loss = torch.sum(torch.stack(kl_divs), dim=0)
                 kl_loss.backward()
                 pi = kl_scheduler.last_pi
@@ -147,9 +158,7 @@ def main(cfg):
             })
 
 
-    if not os.path.exists(cfg.logdir):
-        os.makedirs(cfg.logdir)
-    
+        
     sd = model.state_dict()
     sd = {k: v for k, v in sd.items() if 'lora_' in k}
     torch.save(sd, os.path.join(cfg.logdir, "state_dict.pt"))

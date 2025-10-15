@@ -1,16 +1,11 @@
 defaults:
   - default #conf/default.yaml
   - lora: default
-  - lora/wrapper: blob
+  - lora/wrapper: deepensemble
   - _self_
-  - override optim: vi
 
-optim:
-  kl_optimizer:
-    lr: 0.01
-
-n_test_samples: 10
-n_eval_trials: 5
+n_train_samples: ${lora.wrapper.ensemble_size}
+n_test_samples: ${lora.wrapper.ensemble_size}
 
 #lora:
   #wrapper:

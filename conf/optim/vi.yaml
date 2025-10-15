@@ -1,0 +1,15 @@
+defaults:
+  - default
+  - _self_
+
+kl_optimizer:
+  _target_: torch.optim.SGD
+  lr: 0.2
+
+kl_scheduler:
+  _target_: schedulers.BLoBKLScheduler
+  gamma: 8.0
+  use_exponential: true
+  batch_size: ${optim.batch_size}
+  warmup_ratio: ${optim.warmup_ratio}
+  total_steps: ${optim.max_train_steps}
