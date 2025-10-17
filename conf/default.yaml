@@ -2,7 +2,6 @@ defaults:
   - dataset: default
   - optim: default
   - _self_
-lora: null
 
 hf_model: Qwen/Qwen2.5-7B
 logdir: logs/result

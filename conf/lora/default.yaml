@@ -9,5 +9,3 @@ config:
     - lm_head
     - q_proj
     - v_proj
-
-wrapper: null
