@@ -14,9 +14,6 @@ from peft import get_peft_model
 from lorawrappers import VILoraWrapper
 from transformers import AutoModelForCausalLM, AutoTokenizer #, BitsAndBytesConfig
 from lorawrappers.utils import wrap_lora_layers 
-from accelerate import Accelerator
-from torchmetrics.functional import calibration_error
-from torchmetrics import Accuracy, CalibrationError
 
 @hydra.main(config_path="../conf", config_name="default", version_base=None)
 def main(cfg):
@@ -44,7 +41,7 @@ def main(cfg):
     peft_config = instantiate(cfg.lora.config)
     peft_config.target_modules = list(peft_config.target_modules) #make sure it's a list, otherwise save_pretrained fails
     model = get_peft_model(model, peft_config)
-    if cfg.lora.wrapper is not None:
+    if 'wrapper' in cfg.lora:
         wrapper_fn = instantiate(cfg.lora.wrapper)
         wrap_lora_layers(model, wrapper_fn)
         model = model.to(device) #make sure modified layers are on the right device
@@ -71,10 +68,6 @@ def main(cfg):
     if 'kl_optimizer' in cfg.optim:
         kl_optimizer = instantiate(cfg.optim.kl_optimizer, model.parameters())
         kl_scheduler = instantiate(cfg.optim.kl_scheduler, kl_optimizer, num_samples=dataset.num_samples)
-
-    # model, train_loader, nll_optimizer, nll_scheduler, kl_optimizer, kl_scheduler = accelerator.prepare(
-        # model, train_loader, nll_optimizer, nll_scheduler, kl_optimizer, kl_scheduler
-    # )
 
     n_epochs = math.ceil(cfg.optim.max_train_steps / len(train_loader))
     earlystop_n_epochs = 0
@@ -113,11 +106,17 @@ def main(cfg):
                 reduction="none"
             ).reshape(B, num_samples)
             nll_loss = nll_vals.mean()
+            assert not math.isnan(nll_loss)
             nll_loss.backward()
             nll_optimizer.step()
             nll_optimizer.zero_grad()
             nll_scheduler.step()
-            
+
+            log = {
+                'train/nll_loss': nll_loss.item(),
+                'train/acc': acc.item(),
+                'train/nll_lr': nll_optimizer.param_groups[0]["lr"],
+            }
 
             if 'kl_optimizer' in cfg.optim:
                 kl_divs = []
@@ -126,39 +125,17 @@ def main(cfg):
                         kl_divs.append(module.kl_div)
 
                 kl_loss = torch.sum(torch.stack(kl_divs), dim=0)
+                assert not math.isnan(kl_loss)
                 kl_loss.backward()
-                pi = kl_scheduler.last_pi
                 kl_optimizer.step()
                 kl_optimizer.zero_grad()
                 kl_scheduler.step()
-            else:
-                kl_loss = torch.tensor(0.0).to(device)
-                pi = torch.tensor(0.0).to(device)
+                log['train/kl_loss'] = kl_loss.item()
+                log['train/elbo'] = (nll_loss + kl_loss).item()
+                log['train/kl_lr'] = kl_optimizer.param_groups[0]["lr"]
 
-            assert not math.isnan(nll_loss)
-            assert not math.isnan(kl_loss)
-            # wandb.log({
-                # "train/acc": acc.item(),
-                # "train/nll": nll_loss.item(),
-                # "train/kl": kl_loss.item(),
-                # "train/elbo": (nll_loss + kl_loss).item(),
-                # "train/nll_lr": nll_optimizer.param_groups[0]["lr"],
-                # "train/kl_lr": kl_optimizer.param_groups[0]["lr"],
-            # })
+            wandb.log(log)
 
-            wandb.log({
-                "train_acc": acc.item() * 100,
-                "train_nll_loss": nll_loss.item(),
-                "kl_loss": kl_loss.item() * pi,
-                "elbo_loss": (nll_loss + kl_loss).item(),
-                "lr": nll_optimizer.param_groups[0]["lr"],
-                #"pi": kl_scheduler.last_pi,
-                "pi": pi,
-                # "train/kl_lr": kl_optimizer.param_groups[0]["lr"],
-            })
-
-
-        
     sd = model.state_dict()
     sd = {k: v for k, v in sd.items() if 'lora_' in k}
     torch.save(sd, os.path.join(cfg.logdir, "state_dict.pt"))
