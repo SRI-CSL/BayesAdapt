@@ -10,10 +10,9 @@ from hydra.utils import instantiate
 from omegaconf import OmegaConf
 from tqdm import tqdm, trange
 from accelerate.utils import set_seed
-from peft import get_peft_model
 from lorawrappers import VILoraWrapper
-from transformers import AutoModelForCausalLM, AutoTokenizer #, BitsAndBytesConfig
-from lorawrappers.utils import wrap_lora_layers 
+from transformers import AutoTokenizer
+from bayesadapt.utils import load_model
 
 @hydra.main(config_path="../conf", config_name="default", version_base=None)
 def main(cfg):
@@ -31,21 +30,11 @@ def main(cfg):
     target_ids = dataset.target_ids.squeeze(-1)
 
     device = torch.device(f"cuda:{cfg.gpu_id}" if torch.cuda.is_available() else "cpu")
-    model = AutoModelForCausalLM.from_pretrained(
-        cfg.hf_model, 
-        quantization_config=None,
-        device_map=device,
-        torch_dtype=torch.bfloat16
-    )
-
-    peft_config = instantiate(cfg.lora.config)
-    peft_config.target_modules = list(peft_config.target_modules) #make sure it's a list, otherwise save_pretrained fails
-    model = get_peft_model(model, peft_config)
-    if 'wrapper' in cfg.lora:
-        wrapper_fn = instantiate(cfg.lora.wrapper)
-        wrap_lora_layers(model, wrapper_fn)
-        model = model.to(device) #make sure modified layers are on the right device
+    model = load_model(cfg, device)
     
+    for name, param in model.named_parameters():
+        if param.requires_grad:
+            print(name, param.shape)
     model.print_trainable_parameters()
     num_trainable_params, total_params = model.get_nb_trainable_parameters()
     with open(os.path.join(cfg.logdir, "num_params.json"), "w") as f:
@@ -90,9 +79,12 @@ def main(cfg):
             inputs, labels, _ = batch
             
             logits = []
-            for i in range(cfg.n_train_samples):
-                logits_i = model(**inputs).logits[:, -1, target_ids]
-                logits.append(logits_i)
+            for i in range(cfg.samples.train.backbone):
+                model_output = model(**inputs, output_hidden_states=True)
+                feats = model_output.hidden_states[-1][:, -1] #last layer, last token, (batch_size, hidden_size)
+                for j in range(cfg.samples.train.last_layer):
+                    logits_ij = model.lm_head(feats)[:, target_ids]  # (batch_size, n_classes)
+                    logits.append(logits_ij)
             logits = torch.stack(logits, dim=1) # (B, num_samples, num_classes)
             log_probs = torch.log_softmax(logits, dim=-1)
             

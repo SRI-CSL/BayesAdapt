@@ -79,8 +79,8 @@ class ScalaBLLinear(nn.Module):
 
 
 class ScalablLoraWrapper(VILoraWrapper):
-    def __init__(self, lora_layer: LoraLayer, eps: float = 0.05):
-        super().__init__(lora_layer)
+    def __init__(self, lora_layer: LoraLayer, eps: float = 0.05, *args, **kwargs):
+        super().__init__(lora_layer, *args, **kwargs)
         # self.bayes_eps = bayes_eps
 
     # def wrap(self, *args: Any, **kwargs: Any) -> None:
