@@ -14,7 +14,12 @@ samples:
     backbone: 1
     last_layer: 1
   test:
-    backbone: 10
-    last_layer: 1
+    backbone: 1
+    last_layer: 10
+
+lora:
+  wrapper:
+    target_modules:
+      - lm_head
 
 n_eval_trials: 5

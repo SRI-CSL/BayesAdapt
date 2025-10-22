@@ -104,8 +104,8 @@ class BlobLinear(nn.Module):
         return kl
 
 class BlobLoraWrapper(VILoraWrapper):
-    def __init__(self, lora_layer: LoraLayer, eps: float = 0.05, beta: float = 0.2):
-        super().__init__(lora_layer)
+    def __init__(self, lora_layer: LoraLayer, eps: float = 0.05, beta: float = 0.2, *args: Any, **kwargs: Any):
+        super().__init__(lora_layer, *args, **kwargs)
         for adapter_name in self.active_adapters:
             self.lora_A[adapter_name] = BlobLinear(
                 in_features=self.lora_A[adapter_name].in_features,
