@@ -4,12 +4,12 @@ defaults:
   - lora/wrapper: deepensemble
   - _self_
 
-n_train_samples: ${lora.wrapper.ensemble_size}
-n_test_samples: ${lora.wrapper.ensemble_size}
+samples:
+  train:
+    backbone: ${lora.wrapper.ensemble_size}
+    last_layer: 1
+  test:
+    backbone: ${lora.wrapper.ensemble_size}
+    last_layer: 1
 
-#lora:
-  #wrapper:
-    #_partial_: true
-    #_target_: lorawrappers.BlobLoraWrapper
-    #bayes_eps: 0.05
-    #bayes_beta: 0.2
+n_eval_trials: 1

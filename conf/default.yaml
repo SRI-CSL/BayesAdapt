@@ -5,9 +5,16 @@ defaults:
 
 hf_model: Qwen/Qwen2.5-7B
 logdir: logs/result
+checkpoint: ${logdir}/state_dict.pt
 
-n_train_samples: 1
-n_test_samples: 1
+samples:
+  train:
+    backbone: 1
+    last_layer: 1
+  test:
+    backbone: 1
+    last_layer: 1
+
 n_eval_trials: 1
 gpu_id: 0
 seed: 0

@@ -1,3 +1,6 @@
+defaults:
+  - default
+
 _partial_: true
 _target_: lorawrappers.ScalablLoraWrapper
 eps: 0.05

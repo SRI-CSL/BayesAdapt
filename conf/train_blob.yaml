@@ -9,7 +9,14 @@ optim:
   kl_optimizer:
     lr: 0.01
 
-n_test_samples: 10
+samples:
+  train:
+    backbone: 1
+    last_layer: 1
+  test:
+    backbone: 10
+    last_layer: 1
+
 n_eval_trials: 5
 
 #lora:

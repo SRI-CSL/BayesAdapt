@@ -1,0 +1,4 @@
+target_modules: 
+  - lm_head
+  - q_proj
+  - v_proj
