@@ -33,7 +33,6 @@ def load_model(cfg, device):
         if 'wrapper' in cfg.lora:
             wrapper_fn = instantiate(cfg.lora.wrapper)
             wrap_lora_layers(model, wrapper_fn, cfg.lora.wrapper.target_modules)
-            import ipdb; ipdb.set_trace() # noqa
             model = model.to(device) #make sure modified layers are on the right device
 
     if os.path.exists(cfg.checkpoint):
