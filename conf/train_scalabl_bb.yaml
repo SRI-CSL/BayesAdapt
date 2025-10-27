@@ -1,0 +1,26 @@
+defaults:
+  - default #conf/default.yaml
+  - lora: default
+  - lora/wrapper: scalabl
+  - _self_
+  - override optim: vi
+
+optim:
+  kl_optimizer:
+    lr: 0.2
+
+samples:
+  train:
+    backbone: 1
+    last_layer: 1
+  test:
+    backbone: 10
+    last_layer: 1
+
+n_eval_trials: 5
+
+lora:
+  wrapper:
+    target_modules:
+      - q_proj
+      - v_proj

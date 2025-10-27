@@ -44,7 +44,7 @@ class ScalaBLLinear(nn.Module):
         mean = torch.zeros_like(self.log_s) + 1e-8
         # sigma = torch.exp(self.log_p_sigma)
         # scale_tril = torch.diag(sigma)
-        cov = torch.eye(self.rank, device=self.log_s.device)
+        cov = 0.2 * torch.eye(self.rank, device=self.log_s.device)
         dist = D.MultivariateNormal(
             loc=mean, 
             covariance_matrix=cov
@@ -65,25 +65,36 @@ class ScalaBLLinear(nn.Module):
         return dist
 
     def forward(self, x, lora_B, scaling):
-        # s = self.log_s.exp()
-        weight_posterior = self.weight_posterior
-        W = torch.diag(weight_posterior.mean) @ self.Vh
+        s = self.log_s.exp()
+        # weight_posterior = self.weight_posterior
+        W = torch.diag(s) @ self.Vh
         result = lora_B(F.linear(x, W)) * scaling
 
         if self.blobsample: 
-            # s_sigma = self.log_s_sigma.exp()
-            # s_noise = s_sigma * torch.randn_like(self.log_s)
-            s_sample = self.weight_posterior.rsample() - weight_posterior.mean
-            # S_noise = torch.diag(s_noise)
-            S_noise = torch.diag(s_sample)
+            input_noise = torch.empty_like(x).uniform_(-1, 1).sign()
+            x = x * input_noise
+            s_sigma = self.log_s_sigma.exp()
+            s_noise = s_sigma * torch.randn_like(self.log_s)
+            S_noise = torch.diag(s_noise)
             W_noise = S_noise @ self.Vh
-            result += lora_B(F.linear(x, W_noise)) * scaling
+            projected_noise = F.linear(x, W_noise)
+            rank_noise = torch.empty_like(projected_noise).uniform_(-1, 1).sign()
+            projected_noise = projected_noise * rank_noise
+            result += lora_B(projected_noise) * scaling
+            # result += lora_B(F.linear(x, W_noise)) * scaling
+
+            
+            # s_sample = self.weight_posterior.rsample() - weight_posterior.mean
+            # S_noise = torch.diag(s_noise)
+            # S_noise = torch.diag(s_sample)
+            # W_noise = S_noise @ self.Vh
+            # result += lora_B(F.linear(x, W_noise)) * scaling
         return result
 
     @property
     def kl_div(self):
-        #return D.kl.kl_divergence(self.weight_posterior, self.prior).sum()
-        return D.kl.kl_divergence(self.prior, self.weight_posterior).sum()
+        return D.kl.kl_divergence(self.weight_posterior, self.prior).sum()
+        #return D.kl.kl_divergence(self.prior, self.weight_posterior).sum()
     
     @property
     def kl_div_log(self) -> torch.Tensor:
