@@ -15,6 +15,6 @@ class MCDropoutLoraWrapper(LoraWrapper):
             x = dropout.train()(x)  # always apply dropout even in eval mode
             lora_A = self.lora_A[active_adapter]
             lora_B = self.lora_B[active_adapter]
-            result += lora_B(lora_A(x)) * scaling
+            result = result + lora_B(lora_A(x)) * scaling
         result = result.to(previous_dtype)
         return result

@@ -25,6 +25,6 @@ class LoraWrapper(torch.nn.Module):
             x = dropout(x)
             lora_A = self.lora_A[active_adapter]
             lora_B = self.lora_B[active_adapter]
-            result += lora_B(lora_A(x)) * scaling
+            result = result + lora_B(lora_A(x)) * scaling
         result = result.to(previous_dtype)
         return result

@@ -23,7 +23,8 @@ class VILoraWrapper(LoraWrapper):
             x = dropout(x)
             lora_A = self.lora_A[active_adapter]
             lora_B = self.lora_B[active_adapter]
-            result += lora_A(x, lora_B, scaling)
+            #result += lora_A(x, lora_B, scaling)
+            result = result + lora_A(x, lora_B, scaling)
         result = result.to(previous_dtype)
         return result
 
