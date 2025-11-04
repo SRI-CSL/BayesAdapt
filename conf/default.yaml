@@ -6,6 +6,7 @@ defaults:
 hf_model: Qwen/Qwen2.5-7B
 logdir: logs/result
 checkpoint: ${logdir}/state_dict.pt
+quantize_bits: 8
 
 samples:
   train:

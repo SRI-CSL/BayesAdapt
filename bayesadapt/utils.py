@@ -1,17 +1,34 @@
 import os
 import torch
 from peft import get_peft_model
-from transformers import AutoModelForCausalLM, AutoConfig
+from transformers import AutoModelForCausalLM, AutoConfig, BitsAndBytesConfig
 from lorawrappers.utils import wrap_lora_layers 
 from hydra.utils import instantiate
 
 def load_model(cfg, device):
     model_config = AutoConfig.from_pretrained(cfg.hf_model)
+    if cfg.quantize_bits == 4:
+        bnb_config = BitsAndBytesConfig(
+            load_in_4bit=True,
+            bnb_4bit_quant_type="nf4",
+            bnb_4bit_compute_dtype=torch.bfloat16,
+            bnb_4bit_use_double_quant=True,
+        )
+        torch_dtype = torch.bfloat16
+    elif cfg.quantize_bits == 8:
+        bnb_config = BitsAndBytesConfig(load_in_8bit=True)
+        torch_dtype = torch.float16
+    elif cfg.quantize_bits == 16:
+        bnb_config = None
+        torch_dtype = torch.bfloat16
+    else:
+        raise ValueError(f"Unsupported quantization bits: {cfg.quantize_bits}")
+
     model = AutoModelForCausalLM.from_pretrained(
         cfg.hf_model, 
-        quantization_config=None,
+        quantization_config=bnb_config,
         device_map=device,
-        torch_dtype=torch.bfloat16,
+        torch_dtype=torch_dtype,
         tie_word_embeddings=False,
     )
 
