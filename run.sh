@@ -1,9 +1,9 @@
 #export CUDA_VISIBLE_DEVICES=1 
 SEED=0
-GPU_ID=2
+GPU_ID=7
 MODELFAMILY="Qwen"
 HFMODEL="$MODELFAMILY/Qwen2.5-7B"
-CONFIGNAME="train_scalabl_bb"
+CONFIGNAME="train_scalabl"
 #CONFIGNAME="default"
 #WANDBPROJECT="BLoB-Qwen2.5-7B"
 WANDBPROJECT="$CONFIGNAME-Qwen2.5-7B"
@@ -17,10 +17,11 @@ echo $LOGDIR
     #HFMODEL="$MODELFAMILY/$model"
 #done
 
-#python run/train.py --config-name $CONFIGNAME hf_model=$HFMODEL seed=$SEED gpu_id=$GPU_ID\
-    #wandb.project=$WANDBPROJECT \
-    #wandb.name="$WANDBPROJECT-seed${SEED}-hydra" \
-    #logdir=$LOGDIR \
-    #dataset.name=$DATASET
+python run/train.py --config-name $CONFIGNAME hf_model=$HFMODEL seed=$SEED gpu_id=$GPU_ID\
+    wandb.project=$WANDBPROJECT \
+    wandb.name="$WANDBPROJECT-seed${SEED}-hydra" \
+    logdir=$LOGDIR \
+    dataset.name=$DATASET \
+    optim.batch_size=2
 
 python run/evaluate.py --config-name $CONFIGNAME hf_model=$HFMODEL seed=$SEED gpu_id=$GPU_ID logdir=$LOGDIR dataset.name=$DATASET 
