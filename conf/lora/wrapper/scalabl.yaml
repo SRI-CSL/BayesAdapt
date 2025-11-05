@@ -2,5 +2,5 @@ defaults:
   - default
 
 _partial_: true
-_target_: lorawrappers.ScalablLoraWrapper
+_target_: bayesadapt.lorawrappers.ScalablLoraWrapper
 eps: 0.05

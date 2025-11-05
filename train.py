@@ -10,11 +10,11 @@ from hydra.utils import instantiate
 from omegaconf import OmegaConf
 from tqdm import tqdm, trange
 from accelerate.utils import set_seed
-from lorawrappers import VILoraWrapper
 from transformers import AutoTokenizer
 from bayesadapt.utils import load_model
+from bayesadapt.lorawrappers import VILoraWrapper
 
-@hydra.main(config_path="../conf", config_name="default", version_base=None)
+@hydra.main(config_path="./conf", config_name="default", version_base=None)
 def main(cfg):
     print(cfg)
     set_seed(cfg.seed)

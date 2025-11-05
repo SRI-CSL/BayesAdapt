@@ -7,7 +7,7 @@ kl_optimizer:
   lr: 0.2
 
 kl_scheduler:
-  _target_: schedulers.BLoBKLScheduler
+  _target_: bayesadapt.schedulers.BLoBKLScheduler
   gamma: 8.0
   use_exponential: true
   batch_size: ${optim.batch_size}

@@ -11,7 +11,7 @@ nll_optimizer:
   eps: 1.0e-6
 
 nll_scheduler:
-  _target_: schedulers.BLoBNLLScheduler
+  _target_: bayesadapt.schedulers.BLoBNLLScheduler
   warmup_ratio: ${optim.warmup_ratio}
   total_steps: ${optim.max_train_steps}
 

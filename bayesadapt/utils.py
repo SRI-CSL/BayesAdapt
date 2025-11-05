@@ -2,7 +2,7 @@ import os
 import torch
 from peft import get_peft_model
 from transformers import AutoModelForCausalLM, AutoConfig, BitsAndBytesConfig
-from lorawrappers.utils import wrap_lora_layers 
+from bayesadapt.lorawrappers.utils import wrap_lora_layers 
 from hydra.utils import instantiate
 
 def load_model(cfg, device):

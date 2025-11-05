@@ -17,11 +17,11 @@ echo $LOGDIR
     #HFMODEL="$MODELFAMILY/$model"
 #done
 
-python run/train.py --config-name $CONFIGNAME hf_model=$HFMODEL seed=$SEED gpu_id=$GPU_ID\
+python train.py --config-name $CONFIGNAME hf_model=$HFMODEL seed=$SEED gpu_id=$GPU_ID\
     wandb.project=$WANDBPROJECT \
     wandb.name="$WANDBPROJECT-seed${SEED}-hydra" \
     logdir=$LOGDIR \
-    dataset.name=$DATASET \
-    optim.batch_size=2
+    dataset.name=$DATASET 
+    #optim.batch_size=2
 
-python run/evaluate.py --config-name $CONFIGNAME hf_model=$HFMODEL seed=$SEED gpu_id=$GPU_ID logdir=$LOGDIR dataset.name=$DATASET 
+python evaluate.py --config-name $CONFIGNAME hf_model=$HFMODEL seed=$SEED gpu_id=$GPU_ID logdir=$LOGDIR dataset.name=$DATASET 

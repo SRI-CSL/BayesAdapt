@@ -10,7 +10,7 @@ from transformers import AutoTokenizer
 from torchmetrics.functional import calibration_error, accuracy
 from bayesadapt.utils import load_model
 
-@hydra.main(config_path="../conf", config_name="default", version_base=None)
+@hydra.main(config_path="./conf", config_name="default", version_base=None)
 def main(cfg):
     print(cfg)
     os.makedirs(cfg.logdir, exist_ok=True)

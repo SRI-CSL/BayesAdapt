@@ -1,2 +1,2 @@
 _partial_: true
-_target_: lorawrappers.MCDropoutLoraWrapper
+_target_: bayesadapt.lorawrappers.MCDropoutLoraWrapper
