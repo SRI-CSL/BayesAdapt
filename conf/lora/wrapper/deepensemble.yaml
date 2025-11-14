@@ -1,3 +1,6 @@
+defaults:
+  - default
+
 _partial_: true
 _target_: bayesadapt.lorawrappers.DeepEnsembleLoraWrapper
 ensemble_size: 10
