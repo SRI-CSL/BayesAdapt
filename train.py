@@ -11,7 +11,7 @@ from omegaconf import OmegaConf
 from tqdm import tqdm, trange
 from accelerate.utils import set_seed
 from transformers import AutoTokenizer
-from bayesadapt.utils import load_model
+from bayesadapt.utils import load_model, split_batch
 from bayesadapt.lorawrappers import VILoraWrapper
 
 @hydra.main(config_path="./conf", config_name="default", version_base=None)
@@ -74,32 +74,42 @@ def main(cfg):
     for epoch in trange(n_epochs, desc="Epoch"):
         if cfg.optim.early_stop_steps > 0 and epoch >= earlystop_n_epochs:
             break
-        for batch in tqdm(train_loader, leave=False):
-            batch = [b.to(device) for b in batch]
-            inputs, labels, _ = batch
+        for full_batch in tqdm(train_loader, leave=False):
+            full_batch = [b.to(device) for b in full_batch]
+            inputs, labels, _ = full_batch
+            full_batch_size = labels.size(0)
+            subbatches = split_batch(inputs, labels, num_chunks=cfg.optim.grad_accum_steps)
+            full_nll_loss, num_correct = 0.0, 0.0
+            for batch in subbatches:
+                inputs, labels = batch
+                logits = []
+                for i in range(cfg.samples.train.backbone):
+                    model_output = model(**inputs, output_hidden_states=True)
+                    feats = model_output.hidden_states[-1][:, -1] #last layer, last token, (batch_size, hidden_size)
+                    for j in range(cfg.samples.train.last_layer):
+                        logits_ij = model.lm_head(feats)[:, target_ids]  # (batch_size, n_classes)
+                        logits.append(logits_ij)
+                logits = torch.stack(logits, dim=1) # (B, num_samples, num_classes)
+                log_probs = torch.log_softmax(logits, dim=-1)
+                
+                B, num_samples, num_classes = logits.shape
+                labels = labels.unsqueeze(-1).expand(B, num_samples)
+                num_correct += (log_probs.argmax(dim=-1) == labels).float().sum()
+                # acc = (log_probs.argmax(dim=-1) == labels).float().mean()
+                
+                nll_vals = F.nll_loss(
+                    log_probs.view(B * num_samples, num_classes),
+                    labels.reshape(B * num_samples),
+                    reduction="none"
+                ).reshape(B, num_samples)
+                nll_loss = nll_vals.mean() / len(subbatches)
+                nll_loss.backward() 
+                full_nll_loss += nll_loss.item()
             
-            logits = []
-            for i in range(cfg.samples.train.backbone):
-                model_output = model(**inputs, output_hidden_states=True)
-                feats = model_output.hidden_states[-1][:, -1] #last layer, last token, (batch_size, hidden_size)
-                for j in range(cfg.samples.train.last_layer):
-                    logits_ij = model.lm_head(feats)[:, target_ids]  # (batch_size, n_classes)
-                    logits.append(logits_ij)
-            logits = torch.stack(logits, dim=1) # (B, num_samples, num_classes)
-            log_probs = torch.log_softmax(logits, dim=-1)
-            
-            B, num_samples, num_classes = logits.shape
-            labels = labels.unsqueeze(-1).expand(B, num_samples)
-            acc = (log_probs.argmax(dim=-1) == labels).float().mean()
-            
-            nll_vals = F.nll_loss(
-                log_probs.view(B * num_samples, num_classes),
-                labels.reshape(B * num_samples),
-                reduction="none"
-            ).reshape(B, num_samples)
-            nll_loss = nll_vals.mean()
+            acc = num_correct / full_batch_size
+            nll_loss = full_nll_loss / len(subbatches)
             assert not math.isnan(nll_loss)
-            nll_loss.backward()
+            # nll_loss.backward()
             nll_optimizer.step()
             nll_optimizer.zero_grad()
             nll_scheduler.step()

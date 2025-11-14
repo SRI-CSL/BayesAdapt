@@ -1,6 +1,7 @@
 max_train_steps: 5000
 early_stop_steps: 0
 batch_size: 4
+grad_accum_steps: 1
 warmup_ratio: 0.06
 no_decay: ["bias", "LayerNorm.weight"]
 weight_decay: 0.0

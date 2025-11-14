@@ -57,3 +57,20 @@ def load_model(cfg, device):
         model.load_state_dict(sd, strict=False)
         print('model loaded from', cfg.checkpoint)
     return model
+
+
+#batch is a list of length N (which is NOT the batch size)
+#each list item is either a tensor os shape B x ... or a dict of such tensors, where B is the batch size
+#the output should be a list of length num_chunks with each item being a list of length N
+def split_batch(inputs, labels, num_chunks=1):
+    chunked_inputs = {}
+    for key, value in inputs.items():
+        chunked_inputs[key] = torch.chunk(value, num_chunks)
+    chunked_labels = torch.chunk(labels, num_chunks)
+    
+    split_batches = []
+    for i in range(num_chunks):
+        split_batch = ({key: chunked_inputs[key][i] for key in chunked_inputs}, chunked_labels[i])
+        split_batches.append(split_batch)
+    
+    return split_batches
