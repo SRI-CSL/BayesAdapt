@@ -7,9 +7,9 @@ defaults:
 samples:
   train:
     backbone: ${lora.wrapper.ensemble_size}
-    last_layer: 1
+    last_layer: ${lora.wrapper.ensemble_size}
   test:
     backbone: ${lora.wrapper.ensemble_size}
-    last_layer: 1
+    last_layer: ${lora.wrapper.ensemble_size}
 
 n_eval_trials: 1
