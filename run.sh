@@ -2,12 +2,12 @@
 SEED=0
 GPU_ID=7
 MODELFAMILY="Qwen"
-HFMODEL="$MODELFAMILY/Qwen2.5-7B"
-CONFIGNAME="train_scalabl"
+HFMODEL="$MODELFAMILY/Qwen2.5-32B"
+CONFIGNAME="train_deepensemble"
 #CONFIGNAME="default"
 #WANDBPROJECT="BLoB-Qwen2.5-7B"
-WANDBPROJECT="$CONFIGNAME-Qwen2.5-7B"
-DATASET="winogrande_s"
+WANDBPROJECT="$CONFIGNAME-Qwen2.5-32B"
+DATASET="boolq"
 #LOGDIR="logs/$WANDBPROJECT-${DATASET}-seed${SEED}-td"
 #LOGDIR="logs/Qwen/Qwen2.5-0.5B/scalabl/winogrande_s/seed0/"
 LOGDIR="/tmp/logs"
@@ -21,7 +21,9 @@ python train.py --config-name $CONFIGNAME hf_model=$HFMODEL seed=$SEED gpu_id=$G
     wandb.project=$WANDBPROJECT \
     wandb.name="$WANDBPROJECT-seed${SEED}-hydra" \
     logdir=$LOGDIR \
-    dataset.name=$DATASET 
-    #optim.batch_size=2
+    dataset.name=$DATASET \
+    optim.batch_size=4 \
+    optim.grad_accum_steps=4 \
+    quantize_bits=8 
 
-python evaluate.py --config-name $CONFIGNAME hf_model=$HFMODEL seed=$SEED gpu_id=$GPU_ID logdir=$LOGDIR dataset.name=$DATASET 
+#python evaluate.py --config-name $CONFIGNAME hf_model=$HFMODEL seed=$SEED gpu_id=$GPU_ID logdir=$LOGDIR dataset.name=$DATASET 
