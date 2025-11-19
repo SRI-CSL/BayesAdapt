@@ -1,5 +1,5 @@
-from laplace.baselaplace import ParametricLaplace
-from laplace import *
+from .baselaplace import ParametricLaplace
+# from .laplace import *
 
 
 def Laplace(model, likelihood, subset_of_weights='last_layer', hessian_structure='kron',

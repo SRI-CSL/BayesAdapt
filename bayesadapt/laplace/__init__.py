@@ -7,8 +7,8 @@
 REGRESSION = 'regression'
 CLASSIFICATION = 'classification'
 
-from laplace.baselaplace import BaseLaplace, ParametricLaplace, KronLaplace, DiagLaplace, LowRankLaplace
-from laplace.laplace import Laplace
+from .baselaplace import BaseLaplace, ParametricLaplace, KronLaplace, DiagLaplace, LowRankLaplace
+from .laplace import Laplace
 
 __all__ = ['Laplace',  # direct access to all Laplace classes via unified interface
            'BaseLaplace', 'ParametricLaplace',  # base-class and its (first-level) subclasses

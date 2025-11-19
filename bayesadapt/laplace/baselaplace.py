@@ -4,9 +4,9 @@ import torch
 from torch.nn.utils import parameters_to_vector, vector_to_parameters
 from torch.distributions import MultivariateNormal
 
-from laplace.utils import (parameters_per_layer, invsqrt_precision, 
+from .utils import (parameters_per_layer, invsqrt_precision, 
                            get_nll, validate, Kron, normal_samples)
-from laplace.curvature import AsdlGGN, AsdlHessian
+from .curvature.asdl import AsdlGGN, AsdlHessian
 from tqdm import tqdm
 import time
 import random

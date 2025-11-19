@@ -4,7 +4,7 @@ import torch
 from torch.nn import CrossEntropyLoss, MSELoss
 from torch.nn.utils import parameters_to_vector
 
-from laplace.utils import FeatureExtractor, fit_diagonal_swag_var
+from . import FeatureExtractor, fit_diagonal_swag_var
 
 
 __all__ = ['SubnetMask', 'RandomSubnetMask', 'LargestMagnitudeSubnetMask',
