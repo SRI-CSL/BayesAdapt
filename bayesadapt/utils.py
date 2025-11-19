@@ -5,7 +5,7 @@ from transformers import AutoModelForCausalLM, AutoConfig, BitsAndBytesConfig
 from bayesadapt.lorawrappers.utils import wrap_lora_layers 
 from hydra.utils import instantiate
 
-def load_model(cfg, device):
+def load_model(cfg, device, class_ids=None):
     model_config = AutoConfig.from_pretrained(cfg.hf_model)
     if cfg.quantize_bits == 4:
         bnb_config = BitsAndBytesConfig(
@@ -42,6 +42,22 @@ def load_model(cfg, device):
         model.lm_head.load_state_dict(sd)
         model.config.tie_word_embeddings = False
         print("copied embedding weights to lm_head weights")
+
+    if class_ids is not None:
+        classifier_weights = model.lm_head.weight.detach().clone()
+        new_head = torch.nn.Linear(
+            in_features=classifier_weights.shape[1],
+            out_features=len(class_ids),
+            bias=False,
+            dtype=classifier_weights.dtype,
+            device=classifier_weights.device,
+        )
+        selected_weights = classifier_weights[class_ids]
+        sd = {'weight': selected_weights}
+        new_head.load_state_dict(sd)
+        model.register_module('lm_head', new_head)
+        model.config.vocab_size = len(class_ids)
+
 
     if 'lora' in cfg:
         peft_config = instantiate(cfg.lora.config)
