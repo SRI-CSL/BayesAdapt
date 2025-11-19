@@ -21,7 +21,7 @@ def main(cfg):
     target_ids = dataset.target_ids.squeeze(-1)
 
     device = torch.device(f"cuda:{cfg.gpu_id}" if torch.cuda.is_available() else "cpu")
-    model = load_model(cfg, device)
+    model = load_model(cfg, device, class_ids=target_ids)
 
     model.eval()
     results = []
@@ -45,7 +45,7 @@ def main(cfg):
 
                 for j in range(cfg.samples.test.last_layer):
                     with torch.no_grad() and torch.inference_mode():
-                        cls_logits = model.lm_head(feats)[:, target_ids]  # (batch_size, n_classes)
+                        cls_logits = model.lm_head(feats)#[:, target_ids]  # (batch_size, n_classes)
                     sample_logits.append(cls_logits)
             end_event.record()
             torch.cuda.synchronize()

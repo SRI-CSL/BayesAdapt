@@ -30,7 +30,7 @@ def main(cfg):
     target_ids = dataset.target_ids.squeeze(-1)
 
     device = torch.device(f"cuda:{cfg.gpu_id}" if torch.cuda.is_available() else "cpu")
-    model = load_model(cfg, device)
+    model = load_model(cfg, device, class_ids=target_ids)
     
     for name, param in model.named_parameters():
         if param.requires_grad:
@@ -87,7 +87,7 @@ def main(cfg):
                     model_output = model(**inputs, output_hidden_states=True)
                     feats = model_output.hidden_states[-1][:, -1] #last layer, last token, (batch_size, hidden_size)
                     for j in range(cfg.samples.train.last_layer):
-                        logits_ij = model.lm_head(feats)[:, target_ids]  # (batch_size, n_classes)
+                        logits_ij = model.lm_head(feats)#[:, target_ids]  # (batch_size, n_classes)
                         logits.append(logits_ij)
                 logits = torch.stack(logits, dim=1) # (B, num_samples, num_classes)
                 log_probs = torch.log_softmax(logits, dim=-1)
@@ -103,20 +103,18 @@ def main(cfg):
                     reduction="none"
                 ).reshape(B, num_samples)
                 nll_loss = nll_vals.mean() / len(subbatches)
+                assert not math.isnan(nll_loss)
                 nll_loss.backward() 
                 full_nll_loss += nll_loss.item()
             
-            acc = num_correct / full_batch_size
-            nll_loss = full_nll_loss / len(subbatches)
-            assert not math.isnan(nll_loss)
             # nll_loss.backward()
             nll_optimizer.step()
             nll_optimizer.zero_grad()
             nll_scheduler.step()
 
             log = {
-                'train/nll_loss': nll_loss.item(),
-                'train/acc': acc.item(),
+                'train/nll_loss': (full_nll_loss / len(subbatches)),
+                'train/acc': (num_correct / full_batch_size).item(),
                 'train/nll_lr': nll_optimizer.param_groups[0]["lr"],
             }
 
