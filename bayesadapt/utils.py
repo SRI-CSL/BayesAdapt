@@ -32,6 +32,12 @@ def load_model(cfg, device, class_ids=None):
         tie_word_embeddings=False,
     )
 
+    try:
+        model = model.language_model #gemma3
+        print(f"set model to model.language_model for {cfg.hf_model}")
+    except:
+        pass
+    
     #some models share the weights between the embedding layer and lm_head
     #this is typically done to save memory for small models (i.e. Qwen2.5-0.5B)
     #here we explicitly untie the weights and copy the embedding weights to the lm_head

@@ -453,12 +453,46 @@ Answer:"""
         # prompts = self.tokenizer.apply_chat_template(prompts, tokenize=False, add_generation_prompt=True, enable_thinking=False)
         # return prompts
 
-    def clm_collate_fn(self, batch):
+    def clm_collate_fn_old(self, batch):
         prompts = self._format_prompts(batch)
         prompts = self._tokenize_prompts(prompts)
         classes = t.tensor([int(e["answer"]) - 1 for e in batch])
         targets = t.cat([self.label2target[c.item()] for c in classes])
         return prompts, classes, targets
+
+    def clm_collate_fn(self, batch):
+        sys_prompt = 'For the sentence given below, select the answer that best fills in the blank (_) from the given options.'
+        user_template = '{sentence}\nOptions:\nA) {option1}\nB) {option2}'
+        classes = t.tensor([int(e["answer"]) - 1 for e in batch])
+        targets = t.cat([self.label2target[c.item()] for c in classes])
+        prompts = []
+        for element in batch:
+            user_prompt = user_template.format(
+                sentence=element["sentence"],
+                option1=element["option1"],
+                option2=element["option2"],
+            )
+            messages = [
+                {"role": "system", "content": sys_prompt},
+                {"role": "user", "content": user_prompt},
+            ]
+            prompt = self.tokenizer.apply_chat_template(
+                messages, 
+                tokenize=False, 
+                add_generation_prompt=True
+            )
+            prompts.append(prompt)
+
+        prompts = self.tokenizer(
+            prompts,
+            padding=True,
+            truncation=True,
+            return_tensors="pt",
+            max_length=self.max_seq_len,
+            add_special_tokens=False,
+        )
+        return prompts, classes, targets
+
 
     def s2s_collate_fn(self, batch):
         prompts = [e["sentence"] for e in batch]
