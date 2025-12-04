@@ -27,7 +27,7 @@ class S2SDataset_Classification(DatasetBase):
     }
 
     #def __init__(self, accelerator, args):
-    def __init__(self, tokenizer, name='winogrande_s', testing_set='val', add_space=False, max_seq_len=300, batch_size=4, is_s2s=False):
+    def __init__(self, tokenizer, name='winogrande_s', testing_set='val', add_space=False, max_seq_len=300, batch_size=4, is_s2s=False, instruct=False):
         super().__init__()
 
         # self.args = args
@@ -42,6 +42,7 @@ class S2SDataset_Classification(DatasetBase):
         self.max_seq_len = max_seq_len
         self.batch_size = batch_size
         self.is_s2s = is_s2s
+        self.instruct = instruct
 
 
         # self.tokenizer = AutoTokenizer.from_pretrained(
@@ -50,7 +51,13 @@ class S2SDataset_Classification(DatasetBase):
         self.tokenizer.padding_side = "left"
         if self.dataset in ["boolq", "winogrande_m", "winogrande_s"]:
             self.tokenizer.add_eos_token = True
-        self.tokenizer.pad_token = self.tokenizer.bos_token
+
+        if self.tokenizer.pad_token is None:
+            if self.tokenizer.bos_token is None:
+                self.tokenizer.pad_token = self.tokenizer.eos_token
+            else:
+                self.tokenizer.pad_token = self.tokenizer.bos_token
+        # self.tokenizer.pad_token = self.tokenizer.bos_token
         if self.dataset in self.task_info:
             self.num_labels = self.task_info[self.dataset]["num_labels"]
         elif self.dataset.startswith("MMLU"):
@@ -65,6 +72,7 @@ class S2SDataset_Classification(DatasetBase):
                 add_space=self.add_space,
                 name=self.dataset,
                 max_seq_len=self.max_seq_len,
+                instruct=self.instruct,
             )
         elif self.dataset.startswith("ARC"):
             dset_class: dsets.ClassificationDataset = getattr(dsets, "arc")
@@ -73,6 +81,7 @@ class S2SDataset_Classification(DatasetBase):
                 add_space=self.add_space,
                 name=self.dataset,
                 max_seq_len=self.max_seq_len,
+                instruct=self.instruct,
             )
         elif self.dataset.startswith("MMLU"):
             dset_class: dsets.ClassificationDataset = getattr(dsets, "mmlu")
@@ -81,11 +90,13 @@ class S2SDataset_Classification(DatasetBase):
                 add_space=self.add_space,
                 name=self.dataset[5:],
                 max_seq_len=self.max_seq_len,
+                instruct=self.instruct,
             )
         else:
             dset_class: dsets.ClassificationDataset = getattr(dsets, self.dataset)
             self.dset = dset_class(
-                self.tokenizer, add_space=self.add_space, max_seq_len=self.max_seq_len
+                self.tokenizer, add_space=self.add_space, max_seq_len=self.max_seq_len,
+                instruct=self.instruct,
             )
 
         # if accelerator.is_local_main_process:

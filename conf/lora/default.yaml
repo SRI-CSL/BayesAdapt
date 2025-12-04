@@ -5,6 +5,7 @@ config:
   r: 8
   lora_alpha: 16
   lora_dropout: 0.0
+  exclude_modules: ".*vision_tower.*" #do not fine-tune vision tower for VLMs
   target_modules: 
     - lm_head
     - q_proj

@@ -5,3 +5,4 @@ add_space: False
 max_seq_len: 300
 is_s2s: False
 batch_size: ${optim.batch_size}
+instruct: False

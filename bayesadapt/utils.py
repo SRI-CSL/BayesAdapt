@@ -24,31 +24,34 @@ def load_model(cfg, device, class_ids=None):
     else:
         raise ValueError(f"Unsupported quantization bits: {cfg.quantize_bits}")
 
-    model = AutoModelForCausalLM.from_pretrained(
+    if 'Qwen3-VL' in cfg.hf_model:
+        from transformers import Qwen3VLForConditionalGeneration as model_class
+    elif 'gemma-3' in cfg.hf_model:
+        from transformers import Gemma3ForConditionalGeneration as model_class
+    else:
+        model_class = AutoModelForCausalLM
+
+    model = model_class.from_pretrained(
         cfg.hf_model, 
         quantization_config=bnb_config,
         device_map=device,
-        torch_dtype=torch_dtype,
+        dtype=torch_dtype,
         tie_word_embeddings=False,
     )
 
-    try:
-        model = model.language_model #gemma3
-        print(f"set model to model.language_model for {cfg.hf_model}")
-    except:
-        pass
-    
     #some models share the weights between the embedding layer and lm_head
     #this is typically done to save memory for small models (i.e. Qwen2.5-0.5B)
-    #here we explicitly untie the weights and copy the embedding weights to the lm_head
+    #so we explicitly untie the weights and copy the embedding weights to the lm_head
     #this ensures that only the last layer is stochastic during VI approaches
     if model_config.tie_word_embeddings:
-        embed_weights = model.model.embed_tokens.weight.detach().clone()
+        embed_weights = model.get_input_embeddings().weight.detach().clone()
         sd = {'weight': embed_weights}
         model.lm_head.load_state_dict(sd)
         model.config.tie_word_embeddings = False
         print("copied embedding weights to lm_head weights")
-
+    
+    #following the approach of Laplace LoRA
+    #we only keep the classifier weights for the target classes
     if class_ids is not None:
         classifier_weights = model.lm_head.weight.detach().clone()
         new_head = torch.nn.Linear(
@@ -63,8 +66,7 @@ def load_model(cfg, device, class_ids=None):
         new_head.load_state_dict(sd)
         model.register_module('lm_head', new_head)
         model.config.vocab_size = len(class_ids)
-
-
+   
     if 'lora' in cfg:
         peft_config = instantiate(cfg.lora.config)
         peft_config.target_modules = list(peft_config.target_modules) #make sure it's a list, otherwise save_pretrained fails
@@ -73,7 +75,6 @@ def load_model(cfg, device, class_ids=None):
             wrapper_fn = instantiate(cfg.lora.wrapper)
             wrap_lora_layers(model, wrapper_fn, cfg.lora.wrapper.target_modules)
             model = model.to(device) #make sure modified layers are on the right device
-
     if os.path.exists(cfg.checkpoint):
         sd = torch.load(cfg.checkpoint, map_location='cpu')
         model.load_state_dict(sd, strict=False)

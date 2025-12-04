@@ -45,6 +45,7 @@ class ClassificationDataset:
         numerical: bool = True,
         boolean: bool = False,
         max_seq_len: int = 512,
+        instruct: bool = False,
     ):
         """
         Args:
@@ -54,6 +55,7 @@ class ClassificationDataset:
             preamble: Preamble for general pre-trained / 'CausalLM' models
             add_space: Add an explicit space suffix between preamble and answer tokens.
             numerical: whether labels are numerical (0, 1, ...) or alphabetical (A, B, ...)
+            instruct: whether to use instruction tuning format (e.g. apply_chat_template)
         """
         self.dset = dset
         self.n_labels = n_labels
@@ -62,6 +64,7 @@ class ClassificationDataset:
         self.tokenizer = tokenizer
         self.numerical = numerical
         self.max_seq_len = max_seq_len
+        self.instruct = instruct
 
         spc = " " if self.add_space else ""
         """Token ids of class labels. Example [345, 673, 736]."""
@@ -106,10 +109,28 @@ class ClassificationDataset:
         """Collate function for causal language models"""
         raise NotImplementedError
 
+    @abstractmethod
+    def clm_collate_fn_instruct(self, batch):
+        """Collate function for causal language models with instruction tuning format"""
+        raise NotImplementedError
+
+    def _apply_chat_template(self, messages):
+        text = self.tokenizer.apply_chat_template(
+            messages, 
+            tokenize=False, 
+            add_generation_prompt=True,
+            enable_thinking=False #Qwen3 specific, doesnt seem to break other models
+        )
+        return text
+
     def clm_loader(self, dset: Dataset, *args, **kwargs) -> DataLoader:
         """Returns the dataloader for causal language models"""
+        if self.instruct:
+            collate_fn = self.clm_collate_fn_instruct
+        else:
+            collate_fn = self.clm_collate_fn
         return t.utils.data.DataLoader(
-            dset, collate_fn=self.clm_collate_fn, *args, **kwargs
+            dset, collate_fn=collate_fn, *args, **kwargs
         )
 
     def loader(
@@ -144,7 +165,7 @@ class ClassificationDataset:
         else:
             return self.clm_loader(dset, *args, **kwargs)
 
-    def _tokenize_prompts(self, prompts):
+    def _tokenize_prompts(self, prompts, add_special_tokens: bool = True):
         if self.tokenizer.pad_token_id is None and 'Qwen' in self.tokenizer.init_kwargs['name_or_path']:
             self.tokenizer.pad_token = self.tokenizer.eos_token
         prompts = self.tokenizer(
@@ -153,6 +174,7 @@ class ClassificationDataset:
             truncation=True,
             return_tensors="pt",
             max_length=self.max_seq_len,
+            add_special_tokens=add_special_tokens,
         )
         return prompts
 
@@ -163,6 +185,7 @@ class BoolQDataset(ClassificationDataset):
         tokenizer: AutoTokenizer,
         add_space: bool = True,
         max_seq_len: int = 256,
+        instruct: bool = False,
     ):
         dset = load_dataset("boolq")
         prompt = """Read the passage below and answer the question with the words 'true' or 'false'.
@@ -179,6 +202,7 @@ Answer (true or false):"""
             numerical=False,
             boolean=True,
             max_seq_len=max_seq_len,
+            instruct=instruct,
         )
 
     def clm_collate_fn(self, batch):
@@ -190,6 +214,25 @@ Answer (true or false):"""
         classes = t.tensor([int(e["answer"]) for e in batch])
         targets = t.cat([self.label2target[c.item()] for c in classes])
         return prompts, classes, targets
+
+    def clm_collate_fn_instruct(self, batch):
+        user_template = 'Read the passage below and answer the question with the words "true" or "false".\n{passage}\n{question}?'
+        classes = t.tensor([int(e["answer"]) for e in batch])
+        targets = t.cat([self.label2target[c.item()] for c in classes])
+        text_prompts = []
+        for element in batch:
+            user_prompt = user_template.format(
+                passage=element["passage"][:1024],
+                question=element["question"],
+            )
+            messages = [
+                {"role": "user", "content": user_prompt},
+            ]
+            prompt = self._apply_chat_template(messages)
+            text_prompts.append(prompt)
+        prompts = self._tokenize_prompts(text_prompts, add_special_tokens=False)
+        return prompts, classes, targets
+
 
     def s2s_collate_fn(self, batch):
         prompts = [
@@ -212,6 +255,7 @@ class OBQADataset(ClassificationDataset):
         add_space: bool = True,
         few_shot: bool = False,
         max_seq_len: int = 512,
+        instruct: bool = False,
     ):
         dset = load_dataset("openbookqa", "main")
         prompt = self.few_shot_preamble if few_shot else self.zero_shot_preamble
@@ -223,6 +267,7 @@ class OBQADataset(ClassificationDataset):
             add_space,
             numerical=False,
             max_seq_len=max_seq_len,
+            instruct=instruct,
         )
 
     few_shot_preamble = """Return the abel of the correct answer for each question below.
@@ -275,6 +320,33 @@ Answer:"""
         targets = t.cat([self.label2target[c.item()] for c in classes])
         return prompts, classes, targets
 
+    def clm_collate_fn_instruct(self, batch):
+        classes = t.tensor([ord(e["answerKey"]) - ord("A") for e in batch])
+        targets = t.cat([self.label2target[c.item()] for c in classes])
+        user_template = "Answer the multiple choice question below. Output the letter of your choice only.\n{question}\nChoices:\nA) {option1}\nB) {option2}\nC) {option3}\nD) {option4}"
+        text_prompts = []
+        for element in batch:
+            option_dict = dict(
+                zip(
+                    element["choices"]["label"],
+                    element["choices"]["text"],
+                )
+            )
+            user_prompt = user_template.format(
+                question=element["question_stem"],
+                option1=option_dict["A"],
+                option2=option_dict["B"],
+                option3=option_dict["C"],
+                option4=option_dict["D"],
+            )
+            messages = [
+                {"role": "user", "content": user_prompt},
+            ]
+            prompt = self._apply_chat_template(messages)
+            text_prompts.append(prompt)
+        prompts = self._tokenize_prompts(text_prompts, add_special_tokens=False)
+        return prompts, classes, targets
+
     def s2s_collate_fn(self, batch):
         prompts = self._format_prompts(batch)
         prompts = self._tokenize_prompts(prompts)
@@ -299,6 +371,7 @@ class ARCDataset(ClassificationDataset):
         add_space: bool = True,
         few_shot: bool = False,
         max_seq_len: int = 512,
+        instruct: bool = False,
     ):
         dset = load_dataset("ai2_arc", name)
         prompt = self.few_shot_preamble if few_shot else self.zero_shot_preamble
@@ -310,6 +383,7 @@ class ARCDataset(ClassificationDataset):
             add_space,
             numerical=False,
             max_seq_len=max_seq_len,
+            instruct=instruct,
         )
 
     few_shot_preamble = """Return the label of the correct answer for each question below.
@@ -363,6 +437,38 @@ Answer:"""
         targets = t.cat([self.label2target[c.item()] for c in classes])
         return prompts, classes, targets
 
+    def clm_collate_fn_instruct(self, batch):
+        classes_alpha = t.tensor([ord(e["answerKey"]) - ord("A") for e in batch])
+        classes_num = []
+        for e in batch:
+            try:
+                classes_num.append(int(e["answerKey"]) - 1)
+            except:
+                classes_num.append(-1)
+        # classes_num = t.tensor([int(e["answerKey"]) - 1 for e in batch])
+        classes = t.where(classes_alpha < 0, t.tensor(classes_num), classes_alpha)
+        targets = t.cat([self.label2target[c.item()] for c in classes])
+        user_template = "Answer the multiple choice question below. Output the letter of your choice only.\n{question}\nChoices:\n"
+        text_prompts = []
+        for element in batch:
+            user_prompt = user_template.format(question=element["question"])
+            option_dict = dict(
+                zip(
+                    element["choices"]["label"],
+                    element["choices"]["text"],
+                )
+            )
+            for letter, answer in option_dict.items():
+                user_prompt += f"{letter}) {answer}\n"
+            user_prompt = user_prompt.strip()
+            messages = [
+                {"role": "user", "content": user_prompt},
+            ]
+            prompt = self._apply_chat_template(messages)
+            text_prompts.append(prompt)
+        prompts = self._tokenize_prompts(text_prompts, add_special_tokens=False)
+        return prompts, classes, targets
+
     def s2s_collate_fn(self, batch):
         prompts = self._format_prompts(batch)
         prompts = self._tokenize_prompts(prompts)
@@ -391,6 +497,7 @@ class WinograndeDataset(ClassificationDataset):
         add_space: bool = True,
         few_shot: bool = False,
         max_seq_len: int = 512,
+        instruct: bool = False,
     ):
         dset = load_dataset("winogrande", name, trust_remote_code=True)
         prompt = self.few_shot_preamble if few_shot else self.zero_shot_preamble
@@ -402,6 +509,7 @@ class WinograndeDataset(ClassificationDataset):
             add_space,
             numerical=False,
             max_seq_len=max_seq_len,
+            instruct=instruct,
         )
 
     few_shot_preamble = """Return the label of the correct answer for each question below.
@@ -439,33 +547,18 @@ Answer:"""
             )
         return prompts
 
-    # def _format_prompts(self, batch):
-        # user_template = "Fill in the blank in the sentence below by choosing between options A or B. Output a single character as your answer.\nSentence:\n{sentence}\nOptions:\nA) {option1}\nB) {option2}"
-        # prompts = []
-        # for e in batch:
-            # user_prompt = user_template.format(
-                # sentence=e["sentence"],
-                # option1=e["option1"],
-                # option2=e["option2"],
-            # )
-            # messages = [{'role': 'user', 'content': user_prompt}]
-            # prompts.append(messages)
-        # prompts = self.tokenizer.apply_chat_template(prompts, tokenize=False, add_generation_prompt=True, enable_thinking=False)
-        # return prompts
-
-    def clm_collate_fn_old(self, batch):
+    def clm_collate_fn(self, batch):
         prompts = self._format_prompts(batch)
         prompts = self._tokenize_prompts(prompts)
         classes = t.tensor([int(e["answer"]) - 1 for e in batch])
         targets = t.cat([self.label2target[c.item()] for c in classes])
         return prompts, classes, targets
 
-    def clm_collate_fn(self, batch):
-        sys_prompt = 'For the sentence given below, select the answer that best fills in the blank (_) from the given options.'
-        user_template = '{sentence}\nOptions:\nA) {option1}\nB) {option2}'
+    def clm_collate_fn_instruct(self, batch):
+        user_template = 'For the sentence given below, select the answer that best fills in the blank (_) from the given options.\n{sentence}\nChoices:\nA) {option1}\nB) {option2}'
         classes = t.tensor([int(e["answer"]) - 1 for e in batch])
         targets = t.cat([self.label2target[c.item()] for c in classes])
-        prompts = []
+        text_prompts = []
         for element in batch:
             user_prompt = user_template.format(
                 sentence=element["sentence"],
@@ -473,24 +566,12 @@ Answer:"""
                 option2=element["option2"],
             )
             messages = [
-                {"role": "system", "content": sys_prompt},
                 {"role": "user", "content": user_prompt},
             ]
-            prompt = self.tokenizer.apply_chat_template(
-                messages, 
-                tokenize=False, 
-                add_generation_prompt=True
-            )
-            prompts.append(prompt)
-
-        prompts = self.tokenizer(
-            prompts,
-            padding=True,
-            truncation=True,
-            return_tensors="pt",
-            max_length=self.max_seq_len,
-            add_special_tokens=False,
-        )
+            prompt = self._apply_chat_template(messages)
+            text_prompts.append(prompt)
+        
+        prompts = self._tokenize_prompts(text_prompts, add_special_tokens=False)
         return prompts, classes, targets
 
 
@@ -988,6 +1069,7 @@ class MMLUDataset(ClassificationDataset):
         add_space: bool = True,
         few_shot: bool = False,
         max_seq_len: int = 512,
+        instruct: bool = False,
     ):
 
         dset = load_dataset("cais/mmlu", "all")
@@ -1006,6 +1088,7 @@ class MMLUDataset(ClassificationDataset):
             add_space,
             numerical=False,
             max_seq_len=max_seq_len,
+            instruct=instruct,
         )
 
     few_shot_preamble = """Return the label of the correct answer for each question below.
@@ -1051,6 +1134,30 @@ Answer:"""
         prompts = self._tokenize_prompts(prompts)
         classes = t.tensor([int(e["answer"]) for e in batch])
         targets = t.cat([self.label2target[c.item()] for c in classes])
+        return prompts, classes, targets
+
+    def clm_collate_fn_instruct(self, batch):
+        classes = t.tensor([int(e["answer"]) for e in batch])
+        targets = t.cat([self.label2target[c.item()] for c in classes])
+        user_template = "Answer the multiple choice question below. Output the letter of your choice only.\n{question}\nChoices:\n"
+        text_prompts = []
+        for element in batch:
+            user_prompt = user_template.format(question=element["question"])
+            option_dict = dict(
+                zip(
+                    ["A", "B", "C", "D"],
+                    element["choices"],
+                )
+            )
+            for letter, answer in option_dict.items():
+                user_prompt += f"{letter}) {answer}\n"
+            user_prompt = user_prompt.strip()
+            messages = [
+                {"role": "user", "content": user_prompt},
+            ]
+            prompt = self._apply_chat_template(messages)
+            text_prompts.append(prompt)
+        prompts = self._tokenize_prompts(text_prompts, add_special_tokens=False)
         return prompts, classes, targets
 
     def s2s_collate_fn(self, batch):
