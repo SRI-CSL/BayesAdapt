@@ -53,11 +53,12 @@ def main(cfg):
             elapsed_times.append(start_event.elapsed_time(end_event))
 
             sample_logits = torch.stack(sample_logits, dim=1) # (batch_size, n_samples, n_classes)
+            sample_logits = sample_logits.to(torch.float64) #use higher precision for stability
             sample_probs = torch.softmax(sample_logits, dim=-1) # (batch_size, n_samples, n_classes)
             avg_probs = sample_probs.mean(dim=1) # (batch_size, n_classes)
             test_probs.append(avg_probs.cpu())
             test_labels.append(labels.cpu())
-
+        
         test_probs = torch.cat(test_probs, dim=0)
         test_logprobs = torch.log(test_probs)
         test_preds = test_probs.argmax(dim=-1)
@@ -81,6 +82,7 @@ def main(cfg):
     json_path = os.path.join(cfg.logdir, "results.json")
     with open(json_path, "w") as f:
         json.dump(results, f)
+        f.write("\n")
     print(results)
     
 if __name__ == "__main__":
