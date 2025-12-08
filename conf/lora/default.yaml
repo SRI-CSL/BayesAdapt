@@ -2,6 +2,7 @@ config:
   _target_: peft.LoraConfig
   task_type: CAUSAL_LM
   inference_mode: false
+  init_lora_weights: true #ensures that B weights are init to 0
   r: 8
   lora_alpha: 16
   lora_dropout: 0.0
