@@ -3,7 +3,40 @@ import torch
 from peft import get_peft_model
 from transformers import AutoModelForCausalLM, AutoConfig, BitsAndBytesConfig
 from bayesadapt.lorawrappers.utils import wrap_lora_layers 
+from bayesadapt.lorawrappers import cls2name
 from hydra.utils import instantiate
+
+
+def infer_logdir_from_cfg(cfg):
+    if 'logdir' in cfg and cfg.logdir != 'infer':
+        return cfg.logdir
+    
+    model_family, model_name = cfg.hf_model.split('/')
+    if 'lora' in cfg:
+        r = cfg.lora.config.r
+        if 'wrapper' in cfg.lora:
+            wrapper_cls_name = cfg.lora.wrapper._target_.split('.')[-1]
+            wrapper_name = cls2name[wrapper_cls_name]
+        else:
+            wrapper_name = 'mle' if cfg.optim.weight_decay == 0 else 'map'
+    else:
+        wrapper_name = 'zeroshot'
+        r = 0
+
+    prompt_type = 'instruct' if cfg.dataset.instruct else 'base'
+
+    logdir = os.path.join(
+        'logs',
+        model_family,
+        model_name,
+        f"{cfg.quantize_bits}bit",
+        wrapper_name,
+        f"rank{r}",
+        cfg.dataset.name,
+        prompt_type,
+        f"seed{cfg.seed}",
+    )
+    return logdir
 
 def load_model(cfg, device, class_ids=None):
     model_config = AutoConfig.from_pretrained(cfg.hf_model)

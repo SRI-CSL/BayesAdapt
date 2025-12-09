@@ -10,12 +10,16 @@ from hydra.utils import instantiate
 from omegaconf import OmegaConf
 from tqdm import tqdm, trange
 from accelerate.utils import set_seed
-from transformers import AutoTokenizer
-from bayesadapt.utils import load_model, split_batch
+from transformers import AutoProcessor
+from bayesadapt.utils import load_model, split_batch, infer_logdir_from_cfg
 from bayesadapt.lorawrappers import VILoraWrapper
 
 @hydra.main(config_path="./conf", config_name="default", version_base=None)
 def main(cfg):
+    cfg.logdir = infer_logdir_from_cfg(cfg)
+    train(cfg)
+
+def train(cfg):
     print(cfg)
     set_seed(cfg.seed)
     os.makedirs(cfg.logdir, exist_ok=True)
@@ -23,7 +27,7 @@ def main(cfg):
     with open(os.path.join(cfg.logdir, "config.yaml"), "w") as f:
         f.write(yaml_str)
 
-    tokenizer = AutoTokenizer.from_pretrained(cfg.hf_model, trust_remote_code=True)
+    tokenizer = AutoProcessor.from_pretrained(cfg.hf_model, trust_remote_code=True)
     dataset = instantiate(cfg.dataset, tokenizer)
     dataset.get_loaders()
     train_loader = dataset.train_dataloader
@@ -65,7 +69,7 @@ def main(cfg):
     
     wandb.init(
         project=cfg.wandb.project,
-        name=cfg.wandb.name,
+        name=cfg.logdir.replace('/', '_'),
         entity=os.environ.get("WANDB_ENTITY", None),
         config=dict(cfg),
     )

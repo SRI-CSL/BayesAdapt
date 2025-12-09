@@ -4,7 +4,7 @@ defaults:
   - _self_
 
 hf_model: Qwen/Qwen2.5-7B
-logdir: logs/result
+logdir: infer #if logdir == infer, the logdir will be set by infer_logdir_from_cfg 
 checkpoint: ${logdir}/state_dict.pt
 quantize_bits: 16
 

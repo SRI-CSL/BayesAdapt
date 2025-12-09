@@ -6,15 +6,19 @@ import hydra
 from hydra.utils import instantiate
 from tqdm import tqdm, trange
 from accelerate.utils import set_seed
-from transformers import AutoTokenizer
+from transformers import AutoProcessor
 from torchmetrics.functional import calibration_error, accuracy
-from bayesadapt.utils import load_model
+from bayesadapt.utils import load_model, infer_logdir_from_cfg
 
 @hydra.main(config_path="./conf", config_name="default", version_base=None)
 def main(cfg):
+    cfg.logdir = infer_logdir_from_cfg(cfg)
+    evaluate(cfg)
+
+def evaluate(cfg):
     print(cfg)
     os.makedirs(cfg.logdir, exist_ok=True)
-    tokenizer = AutoTokenizer.from_pretrained(cfg.hf_model, trust_remote_code=True)
+    tokenizer = AutoProcessor.from_pretrained(cfg.hf_model, trust_remote_code=True)
     dataset = instantiate(cfg.dataset, tokenizer)
     dataset.get_loaders()
     test_loader = dataset.test_dataloader
