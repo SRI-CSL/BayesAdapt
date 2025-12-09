@@ -1,4 +1,3 @@
-export BNB_CUDA_VERSION=125
 SEED=0
 GPU_ID=0
 MODELFAMILY="Qwen"
@@ -26,14 +25,46 @@ echo $LOGDIR
 
 #python evaluate.py --config-name $CONFIGNAME hf_model=$HFMODEL seed=$SEED gpu_id=$GPU_ID logdir=$LOGDIR dataset.name=$DATASET 
 
-python train.py \
-    hf_model="Qwen/Qwen2.5-0.5B" \
-    dataset.name="winogrande_s" \
+export CUDA_VISIBLE_DEVICES=1,2,3
+
+python train_and_evaluate.py --multirun \
+    hydra/launcher=ray \
+    +hydra.launcher.ray.init.num_gpus=3 \
+    +hydra.launcher.ray.remote.num_gpus=1 \
+    hf_model="Qwen/Qwen2.5-7B" \
+    dataset.name="winogrande_s","ARC-Easy","ARC-Challenge","obqa" \
     +lora=default \
     +lora/wrapper=scalabl \
     optim=vi \
-    seed=0 \
-    logdir=$LOGDIR 
+    samples.test.backbone=10 \
+    n_eval_trials=5 \
+    seed=0,1,2 \
+    gpu_id=0 #ray will handle CUDA_VISIBLE_DEVICES so we just set gpu_id=0 here
+
+#python evaluate.py \
+    #hf_model="Qwen/Qwen2.5-7B" \
+    #dataset.name="winogrande_s" \
+    #+lora=default \
+    #+lora/wrapper=scalabl \
+    #optim=vi \
+    #seed=0 \
+    #samples.test.backbone=10 \
+    #n_eval_trials=5 \
+    #gpu_id=3 
+
+
+#python evaluate.py \
+    #hf_model="Qwen/Qwen2.5-7B" \
+    #dataset.name="winogrande_s" \
+    #+lora=default \
+    #+lora/wrapper=scalabl \
+    #optim=vi \
+    #seed=0 \
+    #gpu_id=3 \
+    #samples.test.backbone=10 \
+    #n_eval_trials=5 \
+    #logdir=$LOGDIR 
+
 
 #optim.kl_optimizer.lr=0.2 \
 #python convert_dataset.py --config-name $CONFIGNAME hf_model=$HFMODEL seed=$SEED gpu_id=$GPU_ID\
