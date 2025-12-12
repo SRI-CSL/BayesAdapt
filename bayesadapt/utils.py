@@ -108,7 +108,9 @@ def load_model(cfg, device, class_ids=None):
             wrapper_fn = instantiate(cfg.lora.wrapper)
             wrap_lora_layers(model, wrapper_fn, cfg.lora.wrapper.target_modules)
             model = model.to(device) #make sure modified layers are on the right device
-    if os.path.exists(cfg.checkpoint):
+
+    if cfg.checkpoint is not None:
+        assert os.path.exists(cfg.checkpoint), f"Checkpoint {cfg.checkpoint} does not exist"
         sd = torch.load(cfg.checkpoint, map_location='cpu')
         model.load_state_dict(sd, strict=False)
         print('model loaded from', cfg.checkpoint)
