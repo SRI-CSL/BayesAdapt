@@ -15,7 +15,7 @@ def main(cfg):
     cfg.logdir = infer_logdir_from_cfg(cfg)
     evaluate(cfg)
 
-def evaluate(cfg):
+def evaluate(cfg, model=None):
     print(cfg)
     os.makedirs(cfg.logdir, exist_ok=True)
     tokenizer = AutoProcessor.from_pretrained(cfg.hf_model, trust_remote_code=True)
@@ -25,7 +25,21 @@ def evaluate(cfg):
     target_ids = dataset.target_ids.squeeze(-1)
 
     device = torch.device(f"cuda:{cfg.gpu_id}" if torch.cuda.is_available() else "cpu")
-    model = load_model(cfg, device, class_ids=target_ids)
+
+    if model is None:
+        model = load_model(cfg, device, class_ids=target_ids)
+    else:
+        model.to(device)
+    
+    try:
+        num_trainable_params, total_params = model.get_nb_trainable_parameters()
+        num_base_params = total_params - num_trainable_params
+    except: #not a LoRA model
+        num_base_params = sum(p.numel() for p in model.parameters())
+        num_trainable_params = 0
+        total_params = num_base_params
+
+    params_info = {'num_trainable_params': num_trainable_params, 'num_total_params': total_params, 'num_base': num_base_params}
 
     model.eval()
     results = []
@@ -35,7 +49,7 @@ def evaluate(cfg):
     for seed in seeds:
         set_seed(seed.item())
         test_probs, test_labels, elapsed_times, peak_memories = [], [], [], []
-        for batch in tqdm(test_loader, desc="Testing"):
+        for batch in tqdm(test_loader, desc="Testing", disable=not cfg.pbar):
             batch = [b.to(device) for b in batch]
             inputs, labels, _ = batch
             sample_logits = []
@@ -73,6 +87,7 @@ def evaluate(cfg):
         peak_memories = torch.tensor(peak_memories[5:]) / (1024 ** 3) #convert to GB
         
         result = {'seed': seed.item()}
+        result.update(params_info)
         result['latency'] = elapsed_times.mean().item()
         result['peak_memory'] = peak_memories.mean().item()
         

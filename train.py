@@ -36,13 +36,13 @@ def train(cfg):
     device = torch.device(f"cuda:{cfg.gpu_id}" if torch.cuda.is_available() else "cpu")
     model = load_model(cfg, device, class_ids=target_ids)
     
-    for name, param in model.named_parameters():
-        if param.requires_grad:
-            print(name, param.shape)
+    # for name, param in model.named_parameters():
+        # if param.requires_grad:
+            # print(name, param.shape)
     model.print_trainable_parameters()
-    num_trainable_params, total_params = model.get_nb_trainable_parameters()
-    with open(os.path.join(cfg.logdir, "num_params.json"), "w") as f:
-        json.dump({'trainable': num_trainable_params, 'total': total_params}, f)
+    # num_trainable_params, total_params = model.get_nb_trainable_parameters()
+    # with open(os.path.join(cfg.logdir, "num_params.json"), "w") as f:
+        # json.dump({'trainable': num_trainable_params, 'total': total_params}, f)
 
     decay_params, no_decay_params = [], []
     for n, p in model.named_parameters():
@@ -73,12 +73,14 @@ def train(cfg):
         entity=os.environ.get("WANDB_ENTITY", None),
         config=dict(cfg),
     )
-        
+    
+    
     model.train()
-    for epoch in trange(n_epochs, desc="Epoch"):
+    for epoch in trange(n_epochs, desc="Epoch", disable=not cfg.pbar):
         if cfg.optim.early_stop_steps > 0 and epoch >= earlystop_n_epochs:
             break
-        for full_batch in tqdm(train_loader, leave=False):
+
+        for full_batch in tqdm(train_loader, leave=False, disable=not cfg.pbar):
             full_batch = [b.to(device) for b in full_batch]
             inputs, labels, _ = full_batch
             full_batch_size = labels.size(0)
@@ -144,6 +146,7 @@ def train(cfg):
     sd = {k: v for k, v in sd.items() if 'lora_' in k}
     torch.save(sd, os.path.join(cfg.logdir, "state_dict.pt"))
     wandb.finish()
+    return model
     
 if __name__ == "__main__":
     main()
