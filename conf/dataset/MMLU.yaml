@@ -1,0 +1,3 @@
+_target_: bayesadapt.datasets.mmlu.MMLU
+topic: machine_learning
+remove_errors: true

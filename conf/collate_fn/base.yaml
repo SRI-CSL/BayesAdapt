@@ -1,0 +1,2 @@
+_target_: bayesadapt.datasets.collate.base_collate_fn
+_partial_: true

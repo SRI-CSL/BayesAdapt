@@ -1,0 +1,3 @@
+#_partial_: true
+_target_: bayesadapt.datasets.winogrande.Winogrande
+size: s
