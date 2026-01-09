@@ -1,3 +1,5 @@
+checkpoint: null
+
 config:
   _target_: peft.LoraConfig
   task_type: CAUSAL_LM
