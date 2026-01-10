@@ -1,6 +1,7 @@
 defaults:
   - dataset: default
   - optim: default
+  - collate_fn: base
   - _self_
 
 hf_model: Qwen/Qwen2.5-7B
@@ -9,6 +10,7 @@ checkpoint: null
 quantize_bits: 16
 
 pbar: true
+
 
 samples:
   train:

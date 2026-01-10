@@ -1,0 +1,9 @@
+defaults:
+  - default
+
+_partial_: true
+_target_: bayesadapt.lorawrappers.TempScaleLoraWrapper
+per_class: False
+
+target_modules:
+  - lm_head

@@ -23,7 +23,7 @@ class BlobLinear(nn.Module):
         super().__init__()
         self.in_features = in_features
         self.out_features = out_features
-        self.rank = min(in_features, out_features)
+        self.rank = min(in_features, out_features) #problem if num_classes < rank?
         self.weight = nn.Linear(in_features, out_features, bias=False).weight
         self.lora_A_rho = nn.Parameter(torch.zeros(self.rank, self.in_features))
         if eps < 0:
@@ -59,7 +59,8 @@ class BlobLinear(nn.Module):
                 )
                 s_A = (
                     torch.ones(
-                        (x.size(0), self.rank),
+                        #(x.size(0), self.rank),
+                        (x.size(0), self.lora_A_rho.size(0)),
                         device=x.device,
                         dtype=x.dtype,
                     )
@@ -78,7 +79,8 @@ class BlobLinear(nn.Module):
                 )
                 s_A = (
                     torch.ones(
-                        (x.size(0), x.size(1), self.rank),
+                        #(x.size(0), x.size(1), self.rank),
+                        (x.size(0), x.size(1), self.lora_A_rho.size(0)),
                         device=x.device,
                         dtype=x.dtype,
                     )

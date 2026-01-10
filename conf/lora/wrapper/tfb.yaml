@@ -3,3 +3,5 @@ defaults:
 
 _partial_: true
 _target_: bayesadapt.lorawrappers.TFBLoraWrapper
+eps: 0.05
+beta: 0.2

@@ -7,7 +7,7 @@ from .blob import BlobLoraWrapper, BlobLinear
 from .viwrapper import VILoraWrapper
 
 class TFBLoraWrapper(BlobLoraWrapper):
-    def __init__(self, lora_layer: LoraLayer, eps: float = 0.1, beta: float = 0.2, *args: Any, **kwargs: Any):
+    def __init__(self, lora_layer: LoraLayer, eps: float = 0.05, beta: float = 0.2, *args: Any, **kwargs: Any):
         VILoraWrapper.__init__(self, lora_layer, *args, **kwargs)
         self.s_vals = {}
         for adapter_name in self.active_adapters:
@@ -32,13 +32,10 @@ class TFBLoraWrapper(BlobLoraWrapper):
                 blobsample=True,
             ).to(V.device)
 
-            #use V.T to follow orinigal paper, but might be a bug?
             self.lora_A[adapter_name].weight.data = V.T @ A_weight
             self.lora_B[adapter_name].weight.data = U @ torch.diag(s)
 
         self.set_cov(beta=beta)
-            # lora_std = beta / (torch.tile(s.reshape(-1, 1), dims=(1, lora_layer.in_features)) + 1e-6)
-            # self.lora_A[adapter_name].lora_A_rho.data = torch.sqrt(lora_std)
 
 
     def set_cov(self, beta=0.0):

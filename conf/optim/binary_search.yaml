@@ -1,0 +1,7 @@
+defaults:
+  - default
+  - _self_
+
+low_start: 0.001
+high_start: 0.2
+target_ratio: 0.003
