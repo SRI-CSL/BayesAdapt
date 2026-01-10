@@ -2,8 +2,9 @@ import os
 import math
 import torch
 from peft import get_peft_model
-from transformers import AutoModelForCausalLM, AutoConfig, BitsAndBytesConfig
+from transformers import AutoModelForCausalLM, AutoConfig, BitsAndBytesConfig, AutoProcessor
 from bayesadapt.lorawrappers.utils import wrap_lora_layers 
+from torch.utils.data import DataLoader
 # from bayesadapt.lorawrappers import cls2name
 from hydra.utils import instantiate
 from hydra.core.hydra_config import HydraConfig
@@ -138,6 +139,26 @@ def load_model(cfg, device, class_ids=None):
         model.load_state_dict(sd, strict=False)
         print('model loaded from', cfg.checkpoint)
     return model
+
+def load_dataloader(cfg, split='train'):
+    dataset = instantiate(cfg.dataset, split=split)
+
+    processor = AutoProcessor.from_pretrained(cfg.hf_model, trust_remote_code=True, padding_side='left')
+    if hasattr(processor, 'tokenizer'):
+        class_ids = processor.tokenizer.convert_tokens_to_ids(dataset.labels)
+    else:
+        class_ids = processor.convert_tokens_to_ids(dataset.labels)
+
+    dataloader = DataLoader(
+        dataset,
+        batch_size=cfg.optim.batch_size,
+        shuffle=split == 'train',
+        num_workers=1,
+        collate_fn=instantiate(cfg.collate_fn, processor)
+    )
+    dataloader.class_ids = class_ids #sorry
+    return dataloader
+
 
 
 #batch is a list of length N (which is NOT the batch size)

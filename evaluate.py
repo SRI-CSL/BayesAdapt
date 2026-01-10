@@ -8,7 +8,7 @@ from tqdm import tqdm, trange
 from accelerate.utils import set_seed
 from transformers import AutoProcessor
 from torchmetrics.functional import calibration_error, accuracy
-from bayesadapt.utils import load_model, infer_logdir_from_cfg, average_log_probs
+from bayesadapt.utils import load_model, infer_logdir_from_cfg, average_log_probs, load_dataloader
 # from bayesadapt.datasets.collate import base_collate_fn, instruct_collate_fn
 from torch.utils.data import DataLoader
 
@@ -28,28 +28,13 @@ def evaluate(cfg, model=None, split='test', verbose=True, save=True):
     if verbose:
         print(cfg)
     os.makedirs(cfg.logdir, exist_ok=True)
-    processor = AutoProcessor.from_pretrained(cfg.hf_model, trust_remote_code=True, padding_side='left')
-    tokenizer = processor.tokenizer
-    # print("TOKENIZER PADDING SIDE????", tokenizer.padding_side)
-    #dataset = instantiate(cfg.dataset, tokenizer)
-    dataset = instantiate(cfg.dataset, split=split)
-    test_loader = DataLoader(
-        dataset,
-        batch_size=cfg.optim.batch_size,
-        shuffle=False,
-        num_workers=0,
-        collate_fn=instantiate(cfg.collate_fn, processor)
-    )
 
-    # dataset.get_loaders()
-    # test_loader = dataset.test_dataloader
-    # target_ids = dataset.target_ids.squeeze(-1)
-    target_ids = tokenizer.convert_tokens_to_ids(test_loader.dataset.labels)
+    dataloader = load_dataloader(cfg, split)
 
     device = torch.device(f"cuda:{cfg.gpu_id}" if torch.cuda.is_available() else "cpu")
 
     if model is None:
-        model = load_model(cfg, device, class_ids=target_ids)
+        model = load_model(cfg, device, class_ids=dataloader.class_ids)
     else:
         model.to(device)
     
@@ -72,7 +57,7 @@ def evaluate(cfg, model=None, split='test', verbose=True, save=True):
     for seed in seeds:
         set_seed(seed.item())
         test_logits, test_labels, elapsed_times, peak_memories = [], [], [], []
-        for batch in tqdm(test_loader, desc="Testing", disable=not cfg.pbar):
+        for batch in tqdm(dataloader, desc="Testing", disable=not cfg.pbar):
             batch = [b.to(device) for b in batch]
             #inputs, labels, _ = batch
             inputs, labels = batch
@@ -123,7 +108,7 @@ def evaluate(cfg, model=None, split='test', verbose=True, save=True):
         result['latency'] = elapsed_times.mean().item()
         result['peak_memory'] = peak_memories.mean().item()
         
-        metric_kwargs = {'task': 'multiclass', 'num_classes': len(target_ids)}
+        metric_kwargs = {'task': 'multiclass', 'num_classes': len(dataloader.class_ids)}
         result['ACC'] = accuracy(test_preds, test_labels, **metric_kwargs).item()
         result['ECE'] = calibration_error(test_probs, test_labels, n_bins=15, **metric_kwargs).item()
         result['NLL'] = F.nll_loss(test_logprobs, test_labels, reduction="mean").item()

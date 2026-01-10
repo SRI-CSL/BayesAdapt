@@ -11,7 +11,7 @@ from omegaconf import OmegaConf
 from tqdm import tqdm, trange
 from accelerate.utils import set_seed
 from transformers import AutoProcessor
-from bayesadapt.utils import load_model, split_batch, infer_logdir_from_cfg
+from bayesadapt.utils import load_model, split_batch, infer_logdir_from_cfg, load_dataloader
 from bayesadapt.lorawrappers import VILoraWrapper
 from torch.utils.data import DataLoader
 # from itertools import cycle
@@ -33,35 +33,11 @@ def train(cfg):
     yaml_str = OmegaConf.to_yaml(cfg)
     with open(os.path.join(cfg.logdir, "config.yaml"), "w") as f:
         f.write(yaml_str)
+    
 
-    processor = AutoProcessor.from_pretrained(
-        cfg.hf_model, 
-        trust_remote_code=True, 
-        padding_side='left',
-    )
-    if hasattr(processor, 'tokenizer'):
-        tokenizer = processor.tokenizer
-    else:
-        tokenizer = processor
-    dataset = instantiate(cfg.dataset, split=cfg.optim.train_split)
-    print(len(dataset), "samples in the dataset")
-    train_loader = DataLoader(
-        dataset,
-        batch_size=cfg.optim.batch_size,
-        shuffle=True,
-        num_workers=1,
-        persistent_workers=True,
-        collate_fn=instantiate(cfg.collate_fn, processor)
-    )
-
-    target_ids = tokenizer.convert_tokens_to_ids(dataset.labels)
-    # dataset = instantiate(cfg.dataset, tokenizer)
-    # dataset.get_loaders()
-    # train_loader = dataset.train_dataloader
-    # target_ids = dataset.target_ids.squeeze(-1)
-
+    dataloader = load_dataloader(cfg, split=cfg.optim.train_split)
     device = torch.device(f"cuda:{cfg.gpu_id}" if torch.cuda.is_available() else "cpu")
-    model = load_model(cfg, device, class_ids=target_ids)
+    model = load_model(cfg, device, class_ids=dataloader.class_ids)
     
     for name, param in model.named_parameters():
         if param.requires_grad:
@@ -88,7 +64,7 @@ def train(cfg):
     if 'kl_optimizer' in cfg.optim:
         kl_optimizer = instantiate(cfg.optim.kl_optimizer, model.parameters())
         #kl_scheduler = instantiate(cfg.optim.kl_scheduler, kl_optimizer, num_samples=dataset.num_samples)
-        kl_scheduler = instantiate(cfg.optim.kl_scheduler, kl_optimizer, num_samples=len(train_loader.dataset))
+        kl_scheduler = instantiate(cfg.optim.kl_scheduler, kl_optimizer, num_samples=len(dataloader.dataset))
 
     # n_epochs = math.ceil(cfg.optim.max_train_steps / len(train_loader))
 
@@ -108,10 +84,10 @@ def train(cfg):
     # for epoch in trange(n_epochs, desc="Epoch", disable=not cfg.pbar):
         # if cfg.optim.early_stop_steps > 0 and epoch >= earlystop_n_epochs:
             # break
-    train_loader = cycle(train_loader)
+    dataloader = cycle(dataloader)
     # for full_batch in tqdm(train_loader, leave=False, disable=not cfg.pbar):
     for step in trange(cfg.optim.max_train_steps, desc="Step", disable=not cfg.pbar):
-        full_batch = next(train_loader)
+        full_batch = next(dataloader)
         full_batch = [b.to(device) for b in full_batch]
         inputs, labels = full_batch
         full_batch_size = labels.size(0)
