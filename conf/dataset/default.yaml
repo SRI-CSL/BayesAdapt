@@ -1,8 +1,0 @@
-_target_: dataset.S2SDataset_Classification_hydra.S2SDataset_Classification
-name: winogrande_s
-testing_set: val
-add_space: False
-max_seq_len: 300
-is_s2s: False
-batch_size: ${optim.batch_size}
-instruct: False
