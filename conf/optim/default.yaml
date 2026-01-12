@@ -1,21 +1,24 @@
-train_split: train
-max_train_steps: 5000
-early_stop_steps: 0
-batch_size: 4
-grad_accum_steps: 1
-warmup_ratio: 0.06
-no_decay: ["bias", "LayerNorm.weight"]
-weight_decay: 0.0
+#train_split: train
+#max_train_steps: 5000
+#early_stop_steps: 0
+#batch_size: 4
+#grad_accum_steps: 1
+#warmup_ratio: 0.06
+#no_decay: ["bias", "LayerNorm.weight"]
+#weight_decay: 0.0
+
+defaults:
+  - base
 
 nll_optimizer:
   _target_: torch.optim.AdamW
   lr: 1.0e-4
   eps: 1.0e-6
 
-nll_scheduler:
-  _target_: bayesadapt.schedulers.BLoBNLLScheduler
-  warmup_ratio: ${optim.warmup_ratio}
-  total_steps: ${optim.max_train_steps}
+#nll_scheduler:
+  #_target_: bayesadapt.schedulers.BLoBNLLScheduler
+  #warmup_ratio: ${optim.warmup_ratio}
+  #total_steps: ${optim.max_train_steps}
 
 #kl_optimizer:
   #_target_: torch.optim.SGD

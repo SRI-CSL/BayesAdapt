@@ -1,0 +1,7 @@
+defaults:
+  - base
+  - _self_
+
+nll_optimizer:
+  _target_: bayesadapt.optimizer.SGLD
+  lr: 1.0e-4

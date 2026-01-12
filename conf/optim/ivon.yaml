@@ -1,0 +1,7 @@
+defaults:
+  - default
+  - _self_
+
+nll_optimizer:
+  _target_: ivon.IVON
+  lr: 1.0e-4

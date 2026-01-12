@@ -2,6 +2,7 @@ from datasets import load_dataset
 from tqdm import tqdm
 import torch
 import os
+from PIL import Image
 # from transformers import AutoTokenizer
 from torch.utils.data import Dataset, DataLoader
 
@@ -55,10 +56,11 @@ class SLAKE(Dataset):
     def __getitem__(self, idx):
         item = self.data[idx]
         img_path = os.path.join(self.root, item['img_name'])
+        image = Image.open(img_path)
         prompt = prompt_template.format(question=item['question'])
 
         return {
             'prompt': prompt.strip(),
             'label': self.labels.index(item['answer']),
-            'image': img_path
+            'image': image
         }
