@@ -4,8 +4,10 @@
 python binary_search.py \
     +lora=default \
     +lora/wrapper=tfb \
+    optim=binary_search \
+    optim.max_train_steps=5 \
     lora.checkpoint=logs/Qwen/Qwen2.5-7B/16bit/mle/rank8/winogrande_s/base/seed0/state_dict.pt \
-    samples.test.backbone=1 \
+    samples.test.backbone=10 \
     n_eval_trials=1 \
     hf_model=Qwen/Qwen2.5-7B \
     dataset=winogrande_s \
