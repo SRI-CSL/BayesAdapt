@@ -1,5 +1,6 @@
 defaults:
-  - dataset: default
+  - dataset@train_dataset: winogrande_s
+  - dataset@test_dataset: ${dataset@train_dataset}
   - optim: default
   - collate_fn: base
   - _self_

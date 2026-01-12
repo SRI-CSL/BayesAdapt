@@ -1,6 +1,8 @@
 checkpoint: null #path to lora weights checkpoint BEFORE any wrappers
 requires_grad: true #do the prewrapped lora weights require grad? only false for tempscaling
 
+load_mle_checkpoint: false
+
 config:
   _target_: peft.LoraConfig
   task_type: CAUSAL_LM
