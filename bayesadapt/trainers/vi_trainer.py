@@ -1,8 +1,8 @@
 import math
 import torch
 from hydra.utils import instantiate
-from trainer import Trainer
 from bayesadapt.lorawrappers import VILoraWrapper
+from .trainer import Trainer
 
 class VITrainer(Trainer):
     def load_optimizer(self):

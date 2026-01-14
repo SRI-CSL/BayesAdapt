@@ -7,8 +7,8 @@ from datasets import load_dataset, concatenate_datasets, get_dataset_config_name
 
 
 
-prompt_template = """Answer the multiple choice question below in JSON format. Please show your choice in the answer field with only the choice letter, e.g., "answer": "C"."\n{question}\nChoices:\n"""
-
+#prompt_template = """Answer the multiple choice question below in JSON format. Please show your choice in the answer field with only the choice letter, e.g., "answer": "C"."\n{question}\nChoices:\n"""
+prompt_template = "Answer the multiple choice question below. Output the letter of your choice only.\n{question}\nChoices:\n"
 
 class MMLU(Dataset):
     labels = ['A', 'B', 'C', 'D']
@@ -37,7 +37,7 @@ class MMLU(Dataset):
          
         prompt = prompt_template.format(question=item['question'])
         for letter, choice in zip(self.labels, item['choices']):
-            prompt += f"{letter}. {choice}\n"
+            prompt += f"{letter}) {choice}\n"
         return {
             'prompt': prompt.strip(),
             'label': item['answer'],

@@ -1,0 +1,2 @@
+_target_: bayesadapt.trainers.VITrainer
+_recursive_: False

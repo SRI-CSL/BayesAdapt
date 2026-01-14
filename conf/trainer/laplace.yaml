@@ -1,0 +1,2 @@
+_target_: bayesadapt.trainers.LaplaceTrainer
+_recursive_: False

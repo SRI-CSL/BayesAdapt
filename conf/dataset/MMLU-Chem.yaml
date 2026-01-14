@@ -1,0 +1,3 @@
+_target_: bayesadapt.datasets.mmlu.MMLU
+topic: college_chemistry
+remove_errors: true

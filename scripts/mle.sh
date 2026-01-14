@@ -10,12 +10,21 @@
 
 python train_and_evaluate.py \
     +lora=default \
-    hf_model=Qwen/Qwen3-VL-8B-Instruct \
-    dataset=mmstar \
-    collate_fn=vlm \
+    hf_model=Qwen/Qwen2.5-7B \
+    dataset@train_dataset=winogrande_s\
+    collate_fn=base\
     seed=0 \
     pbar=True \
     gpu_id=0 #ray will handle CUDA_VISIBLE_DEVICES so we just set gpu_id=0 here
+
+#python evaluate.py \
+    #+lora=default \
+    #hf_model=Qwen/Qwen3-8B \
+    #dataset@train_dataset=obqa \
+    #dataset@test_dataset=MMLU-Chem \
+    #seed=0 \
+    #pbar=True \
+    #gpu_id=0 #ray will handle CUDA_VISIBLE_DEVICES so we just set gpu_id=0 here
 
 
 #python evaluate.py \

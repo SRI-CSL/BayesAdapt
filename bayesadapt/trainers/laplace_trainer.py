@@ -1,6 +1,6 @@
 import torch
 from bayesadapt.laplace import Laplace
-from trainer import Trainer
+from .trainer import Trainer
 
 class WrappedModel(torch.nn.Module):
     def __init__(self, model):
@@ -16,9 +16,6 @@ class LaplaceTrainer(Trainer):
     @property
     def wrapper_name(self):
         return 'laplace'
-
-    def load_optimizer(self):
-        pass
 
     def save_model(self):
         sd = self.model.state_dict()
@@ -38,22 +35,45 @@ class LaplaceTrainer(Trainer):
         noise = torch.randn_like(f_mu).unsqueeze(-1)
         perturbation = (L @ noise).squeeze(-1)
         logits = f_mu + perturbation
-        return logits
+        logits = logits.permute(1, 0, 2)  # (batch_size, num_samples, num_classes)
+        return logits.detach()
         # sample_probs = torch.softmax(logits, dim=-1)
         # probs = sample_probs.mean(dim=0)
 
-    def train_step(self, batch):
-        pass
+
+    def evaluate_step(self, batch):
+        inputs, labels = batch
+        start_event = torch.cuda.Event(enable_timing=True)
+        end_event = torch.cuda.Event(enable_timing=True)
+        torch.cuda.reset_peak_memory_stats(self.device)
+        start_event.record()
+        logits = self.compute_logits(inputs)
+        end_event.record()
+        torch.cuda.synchronize()
+        peak_memory = torch.cuda.max_memory_allocated(self.device)
+        elapsed_time = start_event.elapsed_time(end_event)
+        return {
+            'logits': logits,
+            'elapsed_time': elapsed_time,
+            'peak_memory': peak_memory,
+        }
+
     
-    def train(self):
+    def evaluate(self):
         self.model.eval()
         self.model = WrappedModel(self.model)
         self.la = Laplace(
             self.model, 
             'classification', 
-            prior_precision=1.0, 
-            subset_of_weights='all', 
-            hessian_structure='kron'
+            prior_precision=self.cfg.optim.prior_precision,
+            subset_of_weights=self.cfg.optim.subset_of_weights,
+            hessian_structure=self.cfg.optim.hessian_structure,
         )
         self.la.fit(self.trainloader)
-        self.save_model()
+        prior_precision = self.la.optimize_prior_precision(
+            method=self.cfg.optim.method,
+            n_steps=self.cfg.optim.n_steps,
+            lr=self.cfg.optim.lr,
+        )
+        super().evaluate()
+        # self.save_model()

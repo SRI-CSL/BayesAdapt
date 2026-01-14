@@ -26,7 +26,6 @@ def cycle(dataloader):
 
 class Trainer:
     def __init__(self, cfg):
-        print(cfg)
         self.cfg = cfg
         self.trainset_name = HydraConfig.get().runtime.choices['dataset@train_dataset']
         self.testset_name = HydraConfig.get().runtime.choices['dataset@test_dataset']
@@ -48,6 +47,12 @@ class Trainer:
             self.load_lora()
             if 'wrapper' in self.cfg.lora:
                 self.wrap_lora_layers()
+
+        if self.cfg.load_pretrained_checkpoint:
+            checkpoint_path = os.path.join(self.expdir, "state_dict.pt")
+            sd = torch.load(checkpoint_path, map_location='cpu')
+            self.model.load_state_dict(sd, strict=False)
+            print('model loaded from', checkpoint_path)
 
     @property
     def wrapper_name(self):
@@ -303,14 +308,15 @@ class Trainer:
         wandb.finish()
         self.save_model()
 
-    def evaluate(self):
+    def evaluate(self, use_train=False, save=True):
         self.model.eval()
         results = []
         seeds = torch.arange(self.cfg.seed, self.cfg.seed + self.cfg.n_eval_trials)
         for seed in seeds:
             set_seed(seed.item())
+            dataloader = self.trainloader if use_train else self.testloader
             test_logits, test_labels, elapsed_times, peak_memories = [], [], [], []
-            for batch in tqdm(self.testloader, desc="Testing", disable=not self.cfg.pbar):
+            for batch in tqdm(dataloader, desc="Testing", disable=not self.cfg.pbar):
                 batch = [b.to(self.device) for b in batch]
                 inputs, labels = batch
                 eval_output = self.evaluate_step(batch)
@@ -339,13 +345,14 @@ class Trainer:
             results.append(result)
             print(result)
         
-        if self.trainset_name != self.testset_name:
-            logdir = os.path.join(self.expdir, 'results', 'ood', self.testset_name)
-        else:
-            logdir = os.path.join(self.expdir, 'results', 'id')
-        os.makedirs(logdir, exist_ok=True)
-        json_path = os.path.join(logdir, "metrics.json")
-        with open(json_path, "w") as f:
-            json.dump(results, f)
-            f.write("\n")
+        if save:
+            if self.trainset_name != self.testset_name:
+                logdir = os.path.join(self.expdir, 'results', 'ood', self.testset_name)
+            else:
+                logdir = os.path.join(self.expdir, 'results', 'id')
+            os.makedirs(logdir, exist_ok=True)
+            json_path = os.path.join(logdir, "metrics.json")
+            with open(json_path, "w") as f:
+                json.dump(results, f)
+                f.write("\n")
         return results

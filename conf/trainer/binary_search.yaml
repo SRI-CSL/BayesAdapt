@@ -1,0 +1,2 @@
+_target_: bayesadapt.trainers.BinarySearcher
+_recursive_: False
