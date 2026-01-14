@@ -54,6 +54,10 @@ class Trainer:
             self.model.load_state_dict(sd, strict=False)
             print('model loaded from', checkpoint_path)
 
+        params_info_path = os.path.join(self.expdir, "param_counts.json")
+        with open(params_info_path, "w") as f:
+            json.dump(self.param_counts, f)
+
     @property
     def wrapper_name(self):
        if 'lora' in self.cfg:
@@ -180,6 +184,23 @@ class Trainer:
         self.wrapper_fn = instantiate(self.cfg.lora.wrapper)
         wrap_lora_layers(self.model, self.wrapper_fn, self.cfg.lora.wrapper.target_modules)
         self.model = self.model.to(self.device) #make sure modified layers are on the right device
+
+
+    @property
+    def param_counts(self):
+        try:
+            num_trainable_params, total_params = self.model.get_nb_trainable_parameters()
+            num_base_params = total_params - num_trainable_params
+        except: #not a LoRA model
+            num_base_params = sum(p.numel() for p in self.model.parameters())
+            num_trainable_params = 0
+            total_params = num_base_params
+        return {
+            'num_trainable_params': num_trainable_params, 
+            'num_total_params': total_params, 
+            'num_base': num_base_params
+        }
+
 
     def load_optimizer(self):
         decay_params, no_decay_params = [], []
