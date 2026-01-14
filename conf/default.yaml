@@ -6,6 +6,7 @@ defaults:
   - collate_fn: base
   - _self_
 
+log_root: logs
 hf_model: Qwen/Qwen2.5-7B
 #logdir: infer #if logdir == infer, the logdir will be set by infer_logdir_from_cfg 
 checkpoint: null

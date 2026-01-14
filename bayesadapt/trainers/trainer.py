@@ -1,6 +1,4 @@
 import os
-import numpy  # needed (don't change it)
-import math
 import json
 import torch
 import torch.nn.functional as F
@@ -11,9 +9,8 @@ from hydra.utils import instantiate
 from tqdm import tqdm, trange
 from accelerate.utils import set_seed
 from transformers import AutoModelForCausalLM, AutoConfig, BitsAndBytesConfig, AutoProcessor
-from bayesadapt.utils import load_model, split_batch, infer_logdir_from_cfg, load_dataloader, average_log_probs
+from bayesadapt.utils import average_log_probs
 from bayesadapt.lorawrappers.utils import wrap_lora_layers 
-from bayesadapt.lorawrappers import VILoraWrapper
 from torch.utils.data import DataLoader
 from hydra.core.hydra_config import HydraConfig
 from torchmetrics.functional import calibration_error, accuracy
@@ -72,10 +69,8 @@ class Trainer:
     @property
     def expdir(self):
         r = self.cfg.lora.config.r if 'lora' in self.cfg else 0
-        # train_dataset = HydraConfig.get().runtime.choices['dataset@train_dataset']
-        # test_dataset = HydraConfig.get().runtime.choices['dataset@test_dataset']
         expdir = os.path.join(
-            'logs',
+            self.cfg.log_root,
             self.cfg.hf_model,
             f"{self.cfg.quantize_bits}bit",
             self.wrapper_name,
@@ -131,6 +126,7 @@ class Trainer:
             dtype=self.torch_dtype,
             tie_word_embeddings=False,
         )
+
         #some models share the weights between the embedding layer and lm_head
         #this is typically done to save memory for small models (i.e. Qwen2.5-0.5B)
         #so we explicitly untie the weights and copy the embedding weights to the lm_head
@@ -184,7 +180,6 @@ class Trainer:
         self.wrapper_fn = instantiate(self.cfg.lora.wrapper)
         wrap_lora_layers(self.model, self.wrapper_fn, self.cfg.lora.wrapper.target_modules)
         self.model = self.model.to(self.device) #make sure modified layers are on the right device
-
 
     @property
     def param_counts(self):
@@ -260,9 +255,9 @@ class Trainer:
             model_output = self.model(**inputs, output_hidden_states=True)
             feats = model_output.hidden_states[-1][:, -1] #last layer, last token, (batch_size, hidden_size)
             for j in range(last_layer_samples):
-                logits_ij = self.model.lm_head(feats)#[:, target_ids]  # (batch_size, n_classes)
+                logits_ij = self.model.lm_head(feats) # (batch_size, num_classes)
                 logits.append(logits_ij)
-        logits = torch.stack(logits, dim=1) # (B, num_samples, num_classes)
+        logits = torch.stack(logits, dim=1) # (batch_size, num_samples, num_classes)
         return logits
 
     def train_step(self, batch):
@@ -325,7 +320,7 @@ class Trainer:
             batch = [b.to(self.device) for b in batch]
             log = self.train_step(batch)
             wandb.log(log)
-        del dataloader
+        del dataloader # needed to avoid hanging 
         wandb.finish()
         self.save_model()
 
@@ -355,7 +350,7 @@ class Trainer:
             elapsed_times = torch.tensor(elapsed_times[5:]) / 1000.0 #convert to seconds
             peak_memories = torch.tensor(peak_memories[5:]) / (1024 ** 3) #convert to GB
             result = {'seed': seed.item()}
-            # result.update(params_info)
+            result.update(self.param_counts)
             result['latency'] = elapsed_times.mean().item()
             result['peak_memory'] = peak_memories.mean().item()
             

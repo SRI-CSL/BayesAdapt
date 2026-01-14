@@ -1,4 +1,0 @@
-defaults:
-  - default #conf/default.yaml
-  - lora: default
-  - _self_
