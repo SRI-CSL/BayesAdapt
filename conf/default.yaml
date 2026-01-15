@@ -12,6 +12,7 @@ hf_model: Qwen/Qwen2.5-7B
 checkpoint: null
 load_pretrained_checkpoint: false
 quantize_bits: 16
+overwrite: false
 
 pbar: true
 

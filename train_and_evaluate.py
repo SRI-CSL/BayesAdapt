@@ -23,8 +23,10 @@ from torch.utils.data import DataLoader
 def main(cfg):
     print(cfg)
     trainer = instantiate(cfg.trainer, cfg=cfg)
-    trainer.train()
-    trainer.evaluate()
+    if not os.path.exists(f"{trainer.expdir}/state_dict.pt") and not cfg.overwrite:
+        trainer.train()
+    if not os.path.exists(f"{trainer.evaldir}/metircs.json") and not cfg.overwrite:
+        trainer.evaluate()
 
 if __name__ == "__main__":
     main()
