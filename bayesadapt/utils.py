@@ -1,6 +1,7 @@
 import os
 import math
 import torch
+import torch.nn.functional as F
 from peft import get_peft_model
 from transformers import AutoModelForCausalLM, AutoConfig, BitsAndBytesConfig, AutoProcessor
 from bayesadapt.lorawrappers.utils import wrap_lora_layers 
@@ -8,6 +9,14 @@ from torch.utils.data import DataLoader
 # from bayesadapt.lorawrappers import cls2name
 from hydra.utils import instantiate
 from hydra.core.hydra_config import HydraConfig
+
+#probs is B x C
+#labels is B
+def brier_score(probs, labels):
+    num_classes = probs.shape[1]
+    target = F.one_hot(labels.long(), num_classes=num_classes).float()
+    squared_diff = (probs - target) ** 2
+    return torch.mean(torch.sum(squared_diff, dim=1))
 
 def average_log_probs(sample_logits):
     B, n_samples, C = sample_logits.shape

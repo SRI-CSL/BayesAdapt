@@ -9,7 +9,7 @@ from hydra.utils import instantiate
 from tqdm import tqdm, trange
 from accelerate.utils import set_seed
 from transformers import AutoModelForCausalLM, AutoConfig, BitsAndBytesConfig, AutoProcessor
-from bayesadapt.utils import average_log_probs
+from bayesadapt.utils import average_log_probs, brier_score
 from bayesadapt.lorawrappers.utils import wrap_lora_layers 
 from torch.utils.data import DataLoader
 from hydra.core.hydra_config import HydraConfig
@@ -80,6 +80,14 @@ class Trainer:
             self.trainset_name,
         )
         return expdir
+
+    @property
+    def evaldir(self):
+        if self.trainset_name != self.testset_name:
+            evaldir = os.path.join(self.expdir, 'results', 'ood', self.testset_name)
+        else:
+            evaldir = os.path.join(self.expdir, 'results', 'id')
+        return evaldir
 
     @property
     def quantization_config(self):
@@ -358,16 +366,17 @@ class Trainer:
             result['ACC'] = accuracy(test_preds, test_labels, **metric_kwargs).item()
             result['ECE'] = calibration_error(test_probs, test_labels, n_bins=15, **metric_kwargs).item()
             result['NLL'] = F.nll_loss(test_logprobs, test_labels, reduction="mean").item()
+            result['Brier'] = brier_score(test_probs, test_labels).item()
             results.append(result)
             print(result)
         
         if save:
-            if self.trainset_name != self.testset_name:
-                logdir = os.path.join(self.expdir, 'results', 'ood', self.testset_name)
-            else:
-                logdir = os.path.join(self.expdir, 'results', 'id')
-            os.makedirs(logdir, exist_ok=True)
-            json_path = os.path.join(logdir, "metrics.json")
+            # if self.trainset_name != self.testset_name:
+                # logdir = os.path.join(self.expdir, 'results', 'ood', self.testset_name)
+            # else:
+                # logdir = os.path.join(self.expdir, 'results', 'id')
+            os.makedirs(self.evaldir, exist_ok=True)
+            json_path = os.path.join(self.evaldir, "metrics.json")
             with open(json_path, "w") as f:
                 json.dump(results, f)
                 f.write("\n")
