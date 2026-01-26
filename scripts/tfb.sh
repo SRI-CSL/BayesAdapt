@@ -1,19 +1,23 @@
 #export CUDA_VISIBLE_DEVICES=1,2,3
 
 #optim=vi \
-python binary_search.py \
+python evaluate.py --multirun \
+    hydra/launcher=ray \
+    +hydra.launcher.ray.init.num_gpus=8 \
+    +hydra.launcher.ray.remote.num_gpus=1 \
     +lora=default \
     +lora/wrapper=tfb \
     optim=binary_search \
+    trainer=binary_search \
     optim.max_train_steps=5 \
-    lora.checkpoint=logs/Qwen/Qwen2.5-7B/16bit/mle/rank8/winogrande_s/base/seed0/state_dict.pt \
     samples.test.backbone=10 \
+    lora.load_mle_checkpoint=True \
     n_eval_trials=1 \
-    hf_model=Qwen/Qwen2.5-7B \
-    dataset=winogrande_s \
-    collate_fn=base \
+    hf_model=Qwen/Qwen3-0.6B,Qwen/Qwen3-1.7B,Qwen/Qwen3-4B,Qwen/Qwen3-8B \
+    dataset@train_dataset=winogrande_s\
+    collate_fn=instruct \
     pbar=True  \
-    seed=0 \
+    seed=0,1,2,3 \
     gpu_id=0 #ray will handle CUDA_VISIBLE_DEVICES so we just set gpu_id=0 here
 
 #python evaluate.py \

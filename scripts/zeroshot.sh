@@ -2,9 +2,9 @@
 
 python evaluate.py \
     hf_model=Qwen/Qwen3-VL-8B-Instruct \
-    dataset=mmstar \
-    collate_fn=vlm \
-    gpu_id=0 #ray will handle CUDA_VISIBLE_DEVICES so we just set gpu_id=0 here
+    collate_fn=vlm\
+    dataset@train_dataset=MNIST\
+    gpu_id=1 #ray will handle CUDA_VISIBLE_DEVICES so we just set gpu_id=0 here
 
 
 #python evaluate.py --multirun \

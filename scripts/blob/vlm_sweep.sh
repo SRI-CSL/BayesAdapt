@@ -6,26 +6,54 @@ python train_and_evaluate.py --multirun \
     +hydra.launcher.ray.remote.num_gpus=1 \
     +lora=default \
     +lora/wrapper=blob \
+    optim.kl_optimizer.lr=0.01 \
     optim=vi \
     trainer=vi \
-    optim.kl_optimizer.lr=0.01 \
     samples.test.backbone=10 \
     n_eval_trials=5 \
-    hf_model=Qwen/Qwen3-0.6B,Qwen/Qwen3-1.7B,Qwen/Qwen3-4B,Qwen/Qwen3-8B \
-    dataset@train_dataset=winogrande_s\
-    collate_fn=instruct \
+    lora.config.r=4,8,16\
+    hf_model=Qwen/Qwen3-VL-2B-Instruct,Qwen/Qwen3-VL-4B-Instruct,Qwen/Qwen3-VL-8B-Instruct\
+    dataset@train_dataset=slake,mmstar,MathVerse \
+    collate_fn=vlm \
     pbar=False \
-    seed=0,1,2,3 \
+    seed=0,1,2\
     gpu_id=0 #ray will handle CUDA_VISIBLE_DEVICES so we just set gpu_id=0 here
 
+#python evaluate.py \
+    #+lora=default \
+    #+lora/wrapper=scalabl \
+    #optim=vi \
+    #samples.test.backbone=10 \
+    #n_eval_trials=5 \
+    #hf_model=Qwen/Qwen3-8B \
+    #dataset@train_dataset=obqa \
+    #dataset@test_dataset=MMLU-Chem \
+    #collate_fn=instruct \
+    #pbar=True  \
+    #seed=0 \
+    #gpu_id=0 #ray will handle CUDA_VISIBLE_DEVICES so we just set gpu_id=0 here
+
+#python evaluate.py \
+    #+lora=default \
+    #+lora/wrapper=scalabl \
+    #optim=vi \
+    #samples.test.backbone=10 \
+    #n_eval_trials=5 \
+    #hf_model=Qwen/Qwen2.5-7B \
+    #dataset.name=winogrande_s \
+    #dataset.instruct=False \
+    #checkpoint=\${logdir}/state_dict.pt \
+    #seed=0 \
+    #gpu_id=0 #ray will handle CUDA_VISIBLE_DEVICES so we just set gpu_id=0 here
+
+#qwen2.5
 #python train_and_evaluate.py --multirun \
     #hydra/launcher=ray \
     #+hydra.launcher.ray.init.num_gpus=8 \
     #+hydra.launcher.ray.remote.num_gpus=1 \
     #+lora=default \
-    #+lora/wrapper=blob \
+    #+lora/wrapper=scalabl \
     #optim=vi \
-    #optim.kl_optimizer.lr=0.01 \
     #samples.test.backbone=10 \
     #n_eval_trials=5 \
     #hf_model=Qwen/Qwen2.5-0.5B,Qwen/Qwen2.5-1.5B,Qwen/Qwen2.5-3B,Qwen/Qwen2.5-7B \
@@ -34,14 +62,14 @@ python train_and_evaluate.py --multirun \
     #seed=0,1,2 \
     #gpu_id=0 #ray will handle CUDA_VISIBLE_DEVICES so we just set gpu_id=0 here
 
+#qwen3
 #python train_and_evaluate.py --multirun \
     #hydra/launcher=ray \
     #+hydra.launcher.ray.init.num_gpus=8 \
     #+hydra.launcher.ray.remote.num_gpus=1 \
     #+lora=default \
-    #+lora/wrapper=blob \
+    #+lora/wrapper=scalabl \
     #optim=vi \
-    #optim.kl_optimizer.lr=0.01 \
     #samples.test.backbone=10 \
     #n_eval_trials=5 \
     #hf_model=Qwen/Qwen3-0.6B,Qwen/Qwen3-1.7B,Qwen/Qwen3-4B,Qwen/Qwen3-8B \

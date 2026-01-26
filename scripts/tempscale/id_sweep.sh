@@ -22,7 +22,12 @@ python train_and_evaluate.py --multirun \
     +hydra.launcher.ray.init.num_gpus=8 \
     +hydra.launcher.ray.remote.num_gpus=1 \
     +lora=default \
-    lora.config.r=8\
+    +lora/wrapper=tempscale \
+    lora.load_mle_checkpoint=True \
+    lora.requires_grad=False \
+    optim.train_split=validation \
+    optim.nll_optimizer.lr=1e-3 \
+    lora.config.r=8 \
     hf_model=Qwen/Qwen3-0.6B,Qwen/Qwen3-1.7B,Qwen/Qwen3-4B,Qwen/Qwen3-8B \
     dataset@train_dataset=winogrande_xs,winogrande_s,winogrande_m,winogrande_l,ARC-Easy,ARC-Challenge,obqa \
     collate_fn=instruct\

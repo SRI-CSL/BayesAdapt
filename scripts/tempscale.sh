@@ -2,28 +2,22 @@
 
 #optim=vi \
 #
-python train_and_evaluate.py \
-    +lora=default \
-    hf_model=Qwen/Qwen3-8B \
-    dataset=ARC-Easy \
-    collate_fn=instruct \
-    pbar=True  \
-    seed=0 \
-    gpu_id=0 #ray will handle CUDA_VISIBLE_DEVICES so we just set gpu_id=0 here
 
-
-python train_and_evaluate.py \
+python train_and_evaluate.py --multirun \
+    hydra/launcher=ray \
+    +hydra.launcher.ray.init.num_gpus=8 \
+    +hydra.launcher.ray.remote.num_gpus=1 \
     +lora=default \
     +lora/wrapper=tempscale \
-    lora.checkpoint=logs/Qwen/Qwen3-8B/16bit/mle/rank8/ARC-Easy/instruct/seed0/state_dict.pt \
+    lora.load_mle_checkpoint=True \
     lora.requires_grad=False \
+    hf_model=Qwen/Qwen3-0.6B,Qwen/Qwen3-1.7B,Qwen/Qwen3-4B,Qwen/Qwen3-8B \
     optim.train_split=validation \
     optim.nll_optimizer.lr=1e-3 \
-    hf_model=Qwen/Qwen3-8B \
-    dataset=ARC-Easy \
-    collate_fn=instruct \
-    pbar=True  \
-    seed=0 \
+    dataset@train_dataset=winogrande_s\
+    collate_fn=instruct\
+    seed=0,1,2,3\
+    pbar=False \
     gpu_id=0 #ray will handle CUDA_VISIBLE_DEVICES so we just set gpu_id=0 here
 
 #python evaluate.py \
