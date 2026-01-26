@@ -39,21 +39,47 @@ class Trainer:
             self.class_ids = self.processor.tokenizer.convert_tokens_to_ids(self.trainloader.dataset.labels)
         else:
             self.class_ids = self.processor.convert_tokens_to_ids(self.trainloader.dataset.labels)
-        self.load_model()
-        if 'lora' in self.cfg:
-            self.load_lora()
-            if 'wrapper' in self.cfg.lora:
-                self.wrap_lora_layers()
 
-        if self.cfg.load_pretrained_checkpoint:
-            checkpoint_path = os.path.join(self.expdir, "state_dict.pt")
-            sd = torch.load(checkpoint_path, map_location='cpu')
-            self.model.load_state_dict(sd, strict=False)
-            print('model loaded from', checkpoint_path)
+        self._model = None
 
-        params_info_path = os.path.join(self.expdir, "param_counts.json")
-        with open(params_info_path, "w") as f:
-            json.dump(self.param_counts, f)
+        # self.load_model()
+        # if 'lora' in self.cfg:
+            # self.load_lora()
+            # if 'wrapper' in self.cfg.lora:
+                # self.wrap_lora_layers()
+
+        # if self.cfg.load_pretrained_checkpoint:
+            # checkpoint_path = os.path.join(self.expdir, "state_dict.pt")
+            # sd = torch.load(checkpoint_path, map_location='cpu')
+            # self.model.load_state_dict(sd, strict=False)
+            # print('model loaded from', checkpoint_path)
+
+        # params_info_path = os.path.join(self.expdir, "param_counts.json")
+        # with open(params_info_path, "w") as f:
+            # json.dump(self.param_counts, f)
+
+
+    @property
+    def model(self):
+        if self._model is None:
+            self.load_model()
+            if 'lora' in self.cfg:
+                self.load_lora()
+                if 'wrapper' in self.cfg.lora:
+                    self.wrap_lora_layers()
+
+            if self.cfg.load_pretrained_checkpoint:
+                checkpoint_path = os.path.join(self.expdir, "state_dict.pt")
+                sd = torch.load(checkpoint_path, map_location='cpu')
+                self._model.load_state_dict(sd, strict=False)
+                print('model loaded from', checkpoint_path)
+            
+            params_info_path = os.path.join(self.expdir, "param_counts.json")
+            with open(params_info_path, "w") as f:
+                json.dump(self.param_counts, f)
+
+        return self._model
+
 
     @property
     def wrapper_name(self):
@@ -127,7 +153,7 @@ class Trainer:
 
     def load_model(self):
         self.model_config = AutoConfig.from_pretrained(self.cfg.hf_model)
-        self.model = self.model_class.from_pretrained(
+        self._model = self.model_class.from_pretrained(
             self.cfg.hf_model, 
             quantization_config=self.quantization_config,
             device_map=self.device,
@@ -140,16 +166,16 @@ class Trainer:
         #so we explicitly untie the weights and copy the embedding weights to the lm_head
         #this ensures that only the last layer is stochastic during VI approaches
         if self.model_config.tie_word_embeddings:
-            embed_weights = self.model.get_input_embeddings().weight.detach().clone()
+            embed_weights = self._model.get_input_embeddings().weight.detach().clone()
             sd = {'weight': embed_weights}
-            self.model.lm_head.load_state_dict(sd)
-            self.model.config.tie_word_embeddings = False
+            self._model.lm_head.load_state_dict(sd)
+            self._model.config.tie_word_embeddings = False
             print("copied embedding weights to lm_head weights")
 
         #following the approach of Laplace LoRA
         #we only keep the classifier weights for the target classes
         if self.class_ids is not None:
-            classifier_weights = self.model.lm_head.weight.detach().clone()
+            classifier_weights = self._model.lm_head.weight.detach().clone()
             new_head = torch.nn.Linear(
                 in_features=classifier_weights.shape[1],
                 out_features=len(self.class_ids),
@@ -160,13 +186,13 @@ class Trainer:
             selected_weights = classifier_weights[self.class_ids]
             sd = {'weight': selected_weights}
             new_head.load_state_dict(sd)
-            self.model.register_module('lm_head', new_head)
-            self.model.config.vocab_size = len(self.class_ids)
+            self._model.register_module('lm_head', new_head)
+            self._model.config.vocab_size = len(self.class_ids)
 
     def load_lora(self):
         self.peft_config = instantiate(self.cfg.lora.config, lora_alpha=self.cfg.lora.config.r*2)
         self.peft_config.target_modules = list(self.peft_config.target_modules) #make sure it's a list, otherwise save_pretrained fails
-        self.model = get_peft_model(self.model, self.peft_config)
+        self._model = get_peft_model(self._model, self.peft_config)
         
         #some methods like Laplace or TFB require starting from a pretrained MLE (unwrapped) LoRA checkpoint
         #we assume that the dir name is the name with the wrapper name replaced by 'mle'
@@ -175,27 +201,27 @@ class Trainer:
             assert os.path.exists(mle_dir), f"Checkpoint dir {mle_dir} does not exist"
             mle_checkpoint = os.path.join(mle_dir, "state_dict.pt")
             sd = torch.load(mle_checkpoint, map_location='cpu')
-            self.model.load_state_dict(sd, strict=False)
+            self._model.load_state_dict(sd, strict=False)
             print('unwrapped lora loaded from', mle_checkpoint)
         
         #include option to turn off grads of unwrapped LoRA parameters
         #this is mostly for temp scaling method
-        for name, param in self.model.named_parameters():
+        for name, param in self._model.named_parameters():
             if param.requires_grad: #only update LoRA parameters
                 param.requires_grad = self.cfg.lora.requires_grad
 
     def wrap_lora_layers(self):
         self.wrapper_fn = instantiate(self.cfg.lora.wrapper)
-        wrap_lora_layers(self.model, self.wrapper_fn, self.cfg.lora.wrapper.target_modules)
-        self.model = self.model.to(self.device) #make sure modified layers are on the right device
+        wrap_lora_layers(self._model, self.wrapper_fn, self.cfg.lora.wrapper.target_modules)
+        self._model = self._model.to(self.device) #make sure modified layers are on the right device
 
     @property
     def param_counts(self):
         try:
-            num_trainable_params, total_params = self.model.get_nb_trainable_parameters()
+            num_trainable_params, total_params = self._model.get_nb_trainable_parameters()
             num_base_params = total_params - num_trainable_params
         except: #not a LoRA model
-            num_base_params = sum(p.numel() for p in self.model.parameters())
+            num_base_params = sum(p.numel() for p in self._model.parameters())
             num_trainable_params = 0
             total_params = num_base_params
         return {
