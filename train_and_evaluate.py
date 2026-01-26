@@ -25,7 +25,7 @@ def main(cfg):
     trainer = instantiate(cfg.trainer, cfg=cfg)
     if not os.path.exists(f"{trainer.expdir}/state_dict.pt") and not cfg.overwrite:
         trainer.train()
-    if not os.path.exists(f"{trainer.evaldir}/metircs.json") and not cfg.overwrite:
+    if not os.path.exists(f"{trainer.evaldir}/metrics.json") and not cfg.overwrite:
         trainer.evaluate()
 
 if __name__ == "__main__":
