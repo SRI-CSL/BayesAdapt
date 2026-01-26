@@ -1,52 +1,27 @@
-from datasets import load_dataset
-from tqdm import tqdm
-import torch
 import os
+import zipfile
 from PIL import Image
-# from transformers import AutoTokenizer
-from torch.utils.data import Dataset, DataLoader
-
-# tokenizer = AutoTokenizer.from_pretrained("Qwen/Qwen2.5-7B", trust_remote_code=True, padding_side='left')
+from torch.utils.data import Dataset
+from datasets import load_dataset
+from huggingface_hub import hf_hub_download
 
 def is_boolean(example):
     return example['answer'] in ['Yes', 'No']
 
-
-# prompt_template = "Answer the following question as Yes or No only.\n{question}"
-# class SLAKE(Dataset):
-    # labels = ['A', 'B', 'C']
-    # def __init__(self, split='train', root='slake_images/imgs/'):
-        # if split not in ['train', 'validation', 'test']:
-            # raise ValueError(f"Unknown split: {split}")
-
-        # self.root = root
-
-        # self.data = load_dataset("BoKelvin/SLAKE", split=split)
-        # self.data = self.data.filter(is_boolean)
-
-    # def __len__(self):
-        # return len(self.data)
-    
-    # def __getitem__(self, idx):
-        # item = self.data[idx]
-        # img_path = os.path.join(self.root, item['img_name'])
-        # prompt = prompt_template.format(question=item['question'])
-
-        # return {
-            # 'prompt': prompt.strip(),
-            # 'label': self.labels.index(item['answer']),
-            # 'image': img_path
-        # }
-
 prompt_template = "Answer the following question as Yes or No only.\n{question}"
 class SLAKE(Dataset):
     labels = ['Yes', 'No']
-    def __init__(self, split='train', root='slake_images/imgs/'):
+    def __init__(self, split='train', root='./images/slake'):
         if split not in ['train', 'validation', 'test']:
             raise ValueError(f"Unknown split: {split}")
+        
+        self.image_dir = os.path.join(root, 'imgs')
 
-        self.root = root
-
+        if not os.path.exists(self.image_dir):
+            zip_path = hf_hub_download(repo_id="BoKelvin/SLAKE", filename="imgs.zip", repo_type="dataset")
+            with zipfile.ZipFile(zip_path, 'r') as zip_ref:
+                zip_ref.extractall(root)
+        
         self.data = load_dataset("BoKelvin/SLAKE", split=split)
         self.data = self.data.filter(is_boolean)
 
@@ -55,7 +30,7 @@ class SLAKE(Dataset):
     
     def __getitem__(self, idx):
         item = self.data[idx]
-        img_path = os.path.join(self.root, item['img_name'])
+        img_path = os.path.join(self.image_dir, item['img_name'])
         image = Image.open(img_path)
         prompt = prompt_template.format(question=item['question'])
 
