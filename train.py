@@ -23,7 +23,7 @@ from laplace_trainer import LaplaceTrainer
 def main(cfg):
     print(cfg)
     trainer = instantiate(cfg.trainer, cfg=cfg)
-    if not os.path.exists(f"{trainer.expdir}/state_dict.pt") and not cfg.overwrite:
+    if not os.path.exists(f"{trainer.expdir}/state_dict.pt") or cfg.overwrite:
         trainer.train()
 
 if __name__ == "__main__":
