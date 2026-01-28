@@ -50,7 +50,7 @@ class MMLUPro(Dataset):
         if split not in ['test', 'validation', 'train']:
             raise ValueError(f"Unknown split: {split}")
         if split == 'train':
-            split = 'validation' # MMLU does not have a train split, use test as a placeholder
+            split = 'validation' # MMLUPro does not have a train set so we use validation as train
         self.data = load_dataset("TIGER-Lab/MMLU-Pro")[split]
 
     def __len__(self):
@@ -61,9 +61,10 @@ class MMLUPro(Dataset):
         
         prompt = prompt_template.format(question=item['question'])
         for letter, choice in zip(self.labels, item['options']):
-            prompt += f"{letter}. {choice}\n"
+            prompt += f"{letter}) {choice}\n"
 
         return {
             'prompt': prompt.strip(),
             'label': item['answer_index'],
+            'question_id': item['question_id'],
         }
