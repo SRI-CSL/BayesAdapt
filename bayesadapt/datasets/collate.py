@@ -47,6 +47,7 @@ def vlm_collate_fn(tokenizer, batch):
     return inputs, labels
 
 def instruct_collate_fn(tokenizer, batch):
+    question_ids = [iten['question_id'] for iten in batch]
     labels = torch.tensor([item['label'] for item in batch]).long()
     messages = [
         [{'role': 'user', 'content': item['prompt']}] 
@@ -65,4 +66,4 @@ def instruct_collate_fn(tokenizer, batch):
         return_tensors="pt",
         add_special_tokens=False,
     )
-    return prompts, labels
+    return prompts, labels, question_ids

@@ -9,7 +9,7 @@ from hydra.utils import instantiate
 from tqdm import tqdm, trange
 from accelerate.utils import set_seed
 from transformers import AutoModelForCausalLM, AutoConfig, BitsAndBytesConfig, AutoProcessor
-from bayesadapt.utils import average_log_probs, brier_score
+from bayesadapt.utils import average_log_probs, brier_score, move_to_device
 from bayesadapt.lorawrappers.utils import wrap_lora_layers 
 from torch.utils.data import DataLoader
 from hydra.core.hydra_config import HydraConfig
@@ -41,23 +41,6 @@ class Trainer:
             self.class_ids = self.processor.convert_tokens_to_ids(self.trainloader.dataset.labels)
 
         self._model = None
-
-        # self.load_model()
-        # if 'lora' in self.cfg:
-            # self.load_lora()
-            # if 'wrapper' in self.cfg.lora:
-                # self.wrap_lora_layers()
-
-        # if self.cfg.load_pretrained_checkpoint:
-            # checkpoint_path = os.path.join(self.expdir, "state_dict.pt")
-            # sd = torch.load(checkpoint_path, map_location='cpu')
-            # self.model.load_state_dict(sd, strict=False)
-            # print('model loaded from', checkpoint_path)
-
-        # params_info_path = os.path.join(self.expdir, "param_counts.json")
-        # with open(params_info_path, "w") as f:
-            # json.dump(self.param_counts, f)
-
 
     @property
     def model(self):
@@ -260,14 +243,14 @@ class Trainer:
             train_dataset,
             batch_size=self.cfg.optim.batch_size,
             shuffle=True,
-            num_workers=1,
+            num_workers=0,
             collate_fn=instantiate(self.cfg.collate_fn, self.processor)
         )
         self.testloader = DataLoader(
             test_dataset,
             batch_size=self.cfg.optim.batch_size,
             shuffle=False,
-            num_workers=1,
+            num_workers=0,
             collate_fn=instantiate(self.cfg.collate_fn, self.processor)
         )
 
@@ -296,7 +279,7 @@ class Trainer:
 
     def train_step(self, batch):
         self.nll_optimizer.zero_grad()
-        inputs, labels = batch
+        inputs, labels, question_ids = batch
         logits = self.compute_logits(inputs)
         log_probs = torch.log_softmax(logits, dim=-1)
         B, num_samples, num_classes = logits.shape
@@ -321,7 +304,7 @@ class Trainer:
         return log
     
     def evaluate_step(self, batch):
-        inputs, labels = batch
+        inputs, labels, question_ids = batch
         start_event = torch.cuda.Event(enable_timing=True)
         end_event = torch.cuda.Event(enable_timing=True)
         torch.cuda.reset_peak_memory_stats(self.device)
@@ -351,7 +334,7 @@ class Trainer:
         dataloader = cycle(self.trainloader)
         for step in trange(self.cfg.optim.max_train_steps, desc="Step", disable=not self.cfg.pbar):
             batch = next(dataloader)
-            batch = [b.to(self.device) for b in batch]
+            batch = move_to_device(batch, self.device)
             log = self.train_step(batch)
             wandb.log(log)
         del dataloader # needed to avoid hanging 
@@ -360,15 +343,19 @@ class Trainer:
 
     def evaluate(self, use_train=False, save=True):
         self.model.eval()
+        if save:
+            os.makedirs(self.evaldir, exist_ok=True)
+
         results = []
         seeds = torch.arange(self.cfg.seed, self.cfg.seed + self.cfg.n_eval_trials)
         for seed in seeds:
             set_seed(seed.item())
             dataloader = self.trainloader if use_train else self.testloader
-            test_logits, test_labels, elapsed_times, peak_memories = [], [], [], []
+            test_logits, test_labels, test_ids, elapsed_times, peak_memories = [], [], [], [], []
             for batch in tqdm(dataloader, desc="Testing", disable=not self.cfg.pbar):
-                batch = [b.to(self.device) for b in batch]
-                inputs, labels = batch
+                batch = move_to_device(batch, self.device)
+                inputs, labels, question_ids = batch
+                test_ids.extend(question_ids)
                 eval_output = self.evaluate_step(batch)
                 test_logits.append(eval_output['logits'].cpu())
                 test_labels.append(labels.cpu())
@@ -376,13 +363,19 @@ class Trainer:
                 peak_memories.append(eval_output['peak_memory'])
             
             test_logits = torch.cat(test_logits, dim=0) # (num_examples, n_samples, n_classes)
+            test_labels = torch.cat(test_labels, dim=0)
+            elapsed_times = torch.tensor(elapsed_times[5:]) / 1000.0 #convert to seconds
+            peak_memories = torch.tensor(peak_memories[5:]) / (1024 ** 3) #convert to GB
+
+            if save:
+                pt_fname = os.path.join(self.evaldir, f"test_logits_seed{seed.item()}.pt")
+                logits_dict = dict(zip(test_ids, test_logits))
+                torch.save(logits_dict, pt_fname)
+
             test_logits = test_logits.to(torch.float64) #use higher precision for stability
             test_logprobs = average_log_probs(test_logits) # (num_examples, n_classes)
             test_probs = torch.exp(test_logprobs)
             test_preds = test_logprobs.argmax(dim=-1)
-            test_labels = torch.cat(test_labels, dim=0)
-            elapsed_times = torch.tensor(elapsed_times[5:]) / 1000.0 #convert to seconds
-            peak_memories = torch.tensor(peak_memories[5:]) / (1024 ** 3) #convert to GB
             result = {'seed': seed.item()}
             result.update(self.param_counts)
             result['latency'] = elapsed_times.mean().item()
@@ -397,11 +390,6 @@ class Trainer:
             print(result)
         
         if save:
-            # if self.trainset_name != self.testset_name:
-                # logdir = os.path.join(self.expdir, 'results', 'ood', self.testset_name)
-            # else:
-                # logdir = os.path.join(self.expdir, 'results', 'id')
-            os.makedirs(self.evaldir, exist_ok=True)
             json_path = os.path.join(self.evaldir, "metrics.json")
             with open(json_path, "w") as f:
                 json.dump(results, f)

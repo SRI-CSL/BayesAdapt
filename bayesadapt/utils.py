@@ -10,6 +10,15 @@ from torch.utils.data import DataLoader
 from hydra.utils import instantiate
 from hydra.core.hydra_config import HydraConfig
 
+def move_to_device(batch, device):
+    new_batch = []
+    for item in batch:
+        try:
+            new_batch.append(item.to(device))
+        except:
+            new_batch.append(item)
+    return tuple(new_batch)
+
 #probs is B x C
 #labels is B
 def brier_score(probs, labels):
