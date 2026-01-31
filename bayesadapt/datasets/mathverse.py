@@ -50,5 +50,6 @@ class MathVerse(Dataset):
         return {
             'prompt': prompt.strip(),
             'label': self.labels.index(item['answer']),
-            'image': item['image']
+            'image': item['image'],
+            'question_id': item['sample_index']
         }

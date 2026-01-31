@@ -25,5 +25,6 @@ class OBQA(Dataset):
 
         return {
             'prompt': prompt.strip(),
-            'label': label
+            'label': label,
+            'question_id': item['id']
         }

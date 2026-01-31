@@ -1,6 +1,4 @@
 from datasets import load_dataset
-from tqdm import tqdm
-import torch
 from torch.utils.data import Dataset
 
 prompt_template = """For the sentence given below, select the answer that best fills in the blank (_) from the given choices.
@@ -21,7 +19,7 @@ class Winogrande(Dataset):
         if split == 'test':
             self.data = load_dataset("winogrande", f"winogrande_{size}", trust_remote_code=True)['validation']
 
-        #winogrande is made up of a nested training set with 5 sizes
+        #winogrande is made up of a nested training set with 5 sizes, with a shared test set across all sizes
         #we take the elements ONLY in winogrande_xl to be our validation set
         #this ensures no overlap with training data, but prolcudes the use of the full xl set for training
         elif split == 'validation':
@@ -49,5 +47,6 @@ class Winogrande(Dataset):
         )
         return {
             'prompt': prompt,
-            'label': int(item['answer']) - 1 #map '1','2' to 0,1
+            'label': int(item['answer']) - 1, #map '1','2' to 0,1
+            'question_id': idx
         }

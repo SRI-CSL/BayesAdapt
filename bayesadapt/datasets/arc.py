@@ -1,11 +1,5 @@
 from datasets import load_dataset
-from tqdm import tqdm
-import torch
-# from transformers import AutoTokenizer
 from torch.utils.data import Dataset, DataLoader
-
-# tokenizer = AutoTokenizer.from_pretrained("Qwen/Qwen2.5-7B", trust_remote_code=True, padding_side='left')
-
 
 prompt_template = "Answer the multiple choice question below. Output the letter of your choice only.\n{question}\nChoices:\n"
 class ARC(Dataset):
@@ -45,5 +39,6 @@ class ARC(Dataset):
 
         return {
             'prompt': prompt.strip(),
-            'label': label
+            'label': label,
+            'question_id': item['id']
         }

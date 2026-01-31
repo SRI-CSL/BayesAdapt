@@ -37,5 +37,6 @@ class SLAKE(Dataset):
         return {
             'prompt': prompt.strip(),
             'label': self.labels.index(item['answer']),
-            'image': image
+            'image': image,
+            'question_id': item['qid']
         }

@@ -14,6 +14,7 @@ def resize_down_only(image, max_size=224):
     return image.resize((new_width, new_height), Image.LANCZOS)
 
 def base_collate_fn(tokenizer, batch):
+    question_ids = [iten['question_id'] for iten in batch]
     labels = torch.tensor([item['label'] for item in batch]).long()
     text_prompts = [item['prompt'] + "\nAnswer:" for item in batch]
     prompts = tokenizer(
@@ -22,11 +23,12 @@ def base_collate_fn(tokenizer, batch):
         return_tensors="pt",
         add_special_tokens=True,
     )
-    return prompts, labels
+    return prompts, labels, question_ids
 
 
 def vlm_collate_fn(tokenizer, batch):
     labels = torch.tensor([item['label'] for item in batch]).long()
+    question_ids = [iten['question_id'] for iten in batch]
     messages = []
     for item in batch:
         #image = Image.open(item['image']).resize((224, 224))
@@ -44,7 +46,7 @@ def vlm_collate_fn(tokenizer, batch):
         padding=True,
         return_tensors="pt"
     )
-    return inputs, labels
+    return inputs, labels, question_ids
 
 def instruct_collate_fn(tokenizer, batch):
     question_ids = [iten['question_id'] for iten in batch]

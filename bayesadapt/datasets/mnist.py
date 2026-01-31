@@ -1,16 +1,8 @@
-from datasets import load_dataset, ClassLabel
-from tqdm import tqdm
 import torch
-import os
-# from transformers import AutoTokenizer
-from torch.utils.data import Dataset, DataLoader
+from torch.utils.data import Dataset
 from sklearn.model_selection import train_test_split
 from torchvision.datasets import MNIST as TorchMNIST
 
-# tokenizer = AutoTokenizer.from_pretrained("Qwen/Qwen2.5-7B", trust_remote_code=True, padding_side='left')
-
-
-# prompt_template = "Answer the following question as Yes or No only.\n{question}"
 prompt_template = "Which numerical digit is shown in the image? Output the digit from 0 to 9 only."
 class MNIST(Dataset):
     labels = ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9']
