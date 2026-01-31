@@ -6,20 +6,15 @@ import wandb
 import hydra
 from omegaconf import OmegaConf
 from hydra.utils import instantiate
+from hydra.core.hydra_config import HydraConfig
 from tqdm import tqdm, trange
 from accelerate.utils import set_seed
 from transformers import AutoModelForCausalLM, AutoConfig, BitsAndBytesConfig, AutoProcessor
-from bayesadapt.utils import average_log_probs, brier_score, move_to_device
+from bayesadapt.utils import average_log_probs, brier_score, move_to_device, cycle
 from bayesadapt.lorawrappers.utils import wrap_lora_layers 
 from torch.utils.data import DataLoader
-from hydra.core.hydra_config import HydraConfig
 from torchmetrics.functional import calibration_error, accuracy
 from peft import get_peft_model
-
-def cycle(dataloader):
-    while True:
-        for data in dataloader:
-            yield data
 
 class Trainer:
     def __init__(self, cfg):
@@ -212,7 +207,6 @@ class Trainer:
             'num_total_params': total_params, 
             'num_base': num_base_params
         }
-
 
     def load_optimizer(self):
         decay_params, no_decay_params = [], []
