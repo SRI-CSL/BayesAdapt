@@ -1,5 +1,6 @@
 #export CUDA_VISIBLE_DEVICES=1,2,3
 
+
 python train_and_evaluate.py --multirun \
     hydra/launcher=ray \
     +hydra.launcher.ray.init.num_gpus=8 \
@@ -11,12 +12,12 @@ python train_and_evaluate.py --multirun \
     trainer=vi \
     samples.test.backbone=10 \
     n_eval_trials=5 \
-    lora.config.r=4,8,16\
+    lora.config.r=8 \
     hf_model=Qwen/Qwen3-VL-2B-Instruct,Qwen/Qwen3-VL-4B-Instruct,Qwen/Qwen3-VL-8B-Instruct\
-    dataset@train_dataset=slake,mmstar,MathVerse \
+    dataset@train_dataset=mmstar,slake,MathVerse \
     collate_fn=vlm \
     pbar=False \
-    seed=0,1,2\
+    seed=0,1,2,3\
     gpu_id=0 #ray will handle CUDA_VISIBLE_DEVICES so we just set gpu_id=0 here
 
 #python evaluate.py \
