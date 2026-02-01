@@ -42,7 +42,7 @@ class LaplaceTrainer(Trainer):
 
 
     def evaluate_step(self, batch):
-        inputs, labels = batch
+        inputs, labels, question_ids = batch
         start_event = torch.cuda.Event(enable_timing=True)
         end_event = torch.cuda.Event(enable_timing=True)
         torch.cuda.reset_peak_memory_stats(self.device)
@@ -61,9 +61,9 @@ class LaplaceTrainer(Trainer):
     
     def evaluate(self):
         self.model.eval()
-        self.model = WrappedModel(self.model)
+        # self.model = WrappedModel(self.model)
         self.la = Laplace(
-            self.model, 
+            WrappedModel(self.model),
             'classification', 
             prior_precision=self.cfg.optim.prior_precision,
             subset_of_weights=self.cfg.optim.subset_of_weights,
