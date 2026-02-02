@@ -1,4 +1,6 @@
-from bayesadapt.lorawrappers import TFBLoraWrapper, VILoraWrapper
+import os
+import torch
+from bayesadapt.lorawrappers import TFBLoraWrapper
 from .trainer import Trainer
 
 def set_cov(model, beta):
@@ -7,29 +9,60 @@ def set_cov(model, beta):
             module.set_cov(beta)
 
 class BinarySearcher(Trainer):
-    def evaluate(self):
+    @property
+    def param_counts(self):
+        counts = super().param_counts
+        counts['num_trainable_params'] += 1  # for beta
+        counts['num_total_params'] += 1
+        return counts
+
+    def load_model(self):
+        super().load_model()
+        sd_path = os.path.join(self.expdir, "state_dict.pt")
+        if os.path.exists(sd_path):
+            sd = torch.load(sd_path, map_location='cpu')
+            self.beta = sd['beta']
+        else:
+            self.beta = 0.0  # default value
+            print("No saved state dict found. Initializing beta to 0.0")
+    
+
+    def save_model(self):
+        sd = {'beta': self.beta}
+        torch.save(sd, os.path.join(self.expdir, "state_dict.pt"))
+        print(f"Saved state dict with beta: {self.beta}")
+
+    def train(self):
         self.model.eval()
         set_cov(self.model, beta=0.0)
         orig_nll = super().evaluate(use_train=True, save=False)[0]['NLL']
+        print(f"Original NLL with beta=0.0: {orig_nll}")
         low, high = self.cfg.optim.low_start, self.cfg.optim.high_start
         best = high  
-        for _ in range(self.cfg.optim.max_train_steps):
+        for t in range(self.cfg.optim.max_train_steps):
             mid = (low + high) / 2
+            print(t, low, high, mid)
             set_cov(self.model, beta=mid)
             new_nll = super().evaluate(use_train=True, save=False)[0]['NLL']
-            print(f"Testing beta: {mid}, NLL: {new_nll}")
 
             #loss_change_ratio = (abs(current_nll_loss.item() - ori_nll_loss.item()) / ori_nll_loss.item())/self.all_ori_predicted_classes.size(0)
             
-            ratio = abs(new_nll - orig_nll) / orig_nll / len(self.trainloader.dataset)
-            print(f"Loss change ratio: {ratio}")
-
+            ratio = abs(new_nll - orig_nll) / orig_nll #/ len(self.trainloader.dataset)
+            print(ratio)
+        
             if ratio > self.cfg.optim.target_ratio:
                 best = mid
                 high = mid
             else:
                 low = mid
+
         
-        print(f"Best beta found: {best}")
-        set_cov(self.model, beta=best)
-        return super().evaluate(use_train=False, save=True)
+        self.beta = best
+        self.save_model()
+        # print(f"Best beta found: {best}")
+        # set_cov(self.model, beta=best)
+        # return super().evaluate(use_train=False, save=True)
+
+    def evaluate(self, **kwargs):
+        set_cov(self.model, beta=self.beta)
+        return super().evaluate(**kwargs)
