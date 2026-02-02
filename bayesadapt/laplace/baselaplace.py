@@ -437,8 +437,9 @@ class ParametricLaplace(BaseLaplace):
         for batch in tqdm(train_loader):
             if type(batch) == tuple:
                 batch = {
-                    'input_ids': batch[0]['input_ids'],
-                    'attention_mask': batch[0]['attention_mask'],
+                    # 'input_ids': batch[0]['input_ids'],
+                    # 'attention_mask': batch[0]['attention_mask'],
+                    **batch[0],
                     'labels': batch[1]
                 }
             try:
