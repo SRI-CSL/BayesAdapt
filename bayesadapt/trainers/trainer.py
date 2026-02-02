@@ -9,12 +9,12 @@ from hydra.utils import instantiate
 from hydra.core.hydra_config import HydraConfig
 from tqdm import tqdm, trange
 from accelerate.utils import set_seed
+from peft import get_peft_model
 from transformers import AutoModelForCausalLM, AutoConfig, BitsAndBytesConfig, AutoProcessor
 from bayesadapt.utils import average_log_probs, brier_score, move_to_device, cycle
-from bayesadapt.lorawrappers.utils import wrap_lora_layers 
-from torch.utils.data import DataLoader
+from peft.tuners.lora import LoraLayer, Linear, Linear4bit, Linear8bitLt
 from torchmetrics.functional import calibration_error, accuracy
-from peft import get_peft_model
+# from bayesadapt.lorawrappers.utils import wrap_lora_layers 
 
 class Trainer:
     def __init__(self, cfg):
@@ -34,7 +34,9 @@ class Trainer:
             self.class_ids = self.processor.tokenizer.convert_tokens_to_ids(self.trainloader.dataset.labels)
         else:
             self.class_ids = self.processor.convert_tokens_to_ids(self.trainloader.dataset.labels)
-
+        
+        #we load the model lazily, only when self.model is called
+        #this allows use to boot up the trainer quickly so we can inspect the expdir etc
         self._model = None
 
     @property
@@ -152,6 +154,7 @@ class Trainer:
 
         #following the approach of Laplace LoRA
         #we only keep the classifier weights for the target classes
+        #this often saves a lot of memory
         if self.class_ids is not None:
             classifier_weights = self._model.lm_head.weight.detach().clone()
             new_head = torch.nn.Linear(
@@ -189,8 +192,18 @@ class Trainer:
                 param.requires_grad = self.cfg.lora.requires_grad
 
     def wrap_lora_layers(self):
+        def wrap_layers(module, wrapper_fn, target_modules=[]):
+            for name, child in module.named_children():
+                is_target = name in target_modules
+                is_lora = isinstance(child, LoraLayer)
+                # is_linear = isinstance(child, Linear) or isinstance(child, Linear4bit) or isinstance(child, Linear8bitLt)
+                is_linear = isinstance(child, (Linear, Linear4bit, Linear8bitLt))
+                if is_target and is_lora and is_linear:
+                    module._modules[name] = wrapper_fn(child)
+                else:
+                    wrap_layers(child, wrapper_fn, target_modules)
         self.wrapper_fn = instantiate(self.cfg.lora.wrapper)
-        wrap_lora_layers(self._model, self.wrapper_fn, self.cfg.lora.wrapper.target_modules)
+        wrap_layers(self._model, self.wrapper_fn, self.cfg.lora.wrapper.target_modules)
         self._model = self._model.to(self.device) #make sure modified layers are on the right device
 
     @property
@@ -233,14 +246,14 @@ class Trainer:
     def load_dataloaders(self):
         train_dataset = instantiate(self.cfg.train_dataset, split=self.cfg.optim.train_split)
         test_dataset = instantiate(self.cfg.test_dataset, split='test')
-        self.trainloader = DataLoader(
+        self.trainloader = torch.utils.data.DataLoader(
             train_dataset,
             batch_size=self.cfg.optim.batch_size,
             shuffle=True,
             num_workers=0,
             collate_fn=instantiate(self.cfg.collate_fn, self.processor)
         )
-        self.testloader = DataLoader(
+        self.testloader = torch.utils.data.DataLoader(
             test_dataset,
             batch_size=self.cfg.optim.batch_size,
             shuffle=False,
@@ -254,17 +267,33 @@ class Trainer:
         torch.save(sd, os.path.join(self.expdir, "state_dict.pt"))
         print(f"Model saved to {self.expdir}")
 
+    def compute_feats(self, inputs):
+        try:
+            model_output = self.model.model.model(**inputs) #peft models
+        except:
+            model_output = self.model.model(**inputs) #non-peft models
+        feats = model_output.last_hidden_state[:, -1] #last layer, last token
+        return feats #(batch_size, hidden_size)
+
+    #old version using hidden states which does not work with Qwen3-VL
+    def compute_featsv0(self, inputs):
+        model_output = self.model(**inputs, output_hidden_states=True)
+        feats = model_output.hidden_states[-1][:, -1] #last layer, last token
+        return feats #(batch_size, hidden_size)
+
     def compute_logits(self, inputs):
-        logits = []
+        #for sampling-based methods, we compute the forward pass multiple times
+        #in total: num_samples = backbone_samples * last_layer_samples
         if self.model.training:
             backbone_samples = self.cfg.samples.train.backbone
             last_layer_samples = self.cfg.samples.train.last_layer
         else:
             backbone_samples = self.cfg.samples.test.backbone
             last_layer_samples = self.cfg.samples.test.last_layer
+        
+        logits = []
         for i in range(backbone_samples):
-            model_output = self.model(**inputs, output_hidden_states=True)
-            feats = model_output.hidden_states[-1][:, -1] #last layer, last token, (batch_size, hidden_size)
+            feats = self.compute_feats(inputs)
             for j in range(last_layer_samples):
                 logits_ij = self.model.lm_head(feats) # (batch_size, num_classes)
                 logits.append(logits_ij)
@@ -316,7 +345,6 @@ class Trainer:
         }
 
     def train(self):
-        # set_seed(self.cfg.seed)
         self.load_optimizer()
         wandb.init(
             project=self.cfg.wandb.project,

@@ -17,12 +17,6 @@ class LaplaceTrainer(Trainer):
     def wrapper_name(self):
         return 'laplace'
 
-    def save_model(self):
-        sd = self.model.state_dict()
-        sd = {k: v for k, v in sd.items() if 'lora_' in k}
-        torch.save(sd, os.path.join(self.expdir, "state_dict.pt"))
-        print(f"Model saved to {self.expdir}")
-    
     def compute_logits(self, inputs):
         samples = 100000
         with torch.no_grad():
@@ -37,9 +31,6 @@ class LaplaceTrainer(Trainer):
         logits = f_mu + perturbation
         logits = logits.permute(1, 0, 2)  # (batch_size, num_samples, num_classes)
         return logits.detach()
-        # sample_probs = torch.softmax(logits, dim=-1)
-        # probs = sample_probs.mean(dim=0)
-
 
     def evaluate_step(self, batch):
         inputs, labels, question_ids = batch
@@ -58,10 +49,8 @@ class LaplaceTrainer(Trainer):
             'peak_memory': peak_memory,
         }
 
-    
     def evaluate(self):
         self.model.eval()
-        # self.model = WrappedModel(self.model)
         self.la = Laplace(
             WrappedModel(self.model),
             'classification', 
@@ -76,4 +65,3 @@ class LaplaceTrainer(Trainer):
             lr=self.cfg.optim.lr,
         )
         super().evaluate()
-        # self.save_model()
