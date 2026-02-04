@@ -14,7 +14,6 @@ from transformers import AutoModelForCausalLM, AutoConfig, BitsAndBytesConfig, A
 from bayesadapt.utils import average_log_probs, brier_score, move_to_device, cycle
 from peft.tuners.lora import LoraLayer, Linear, Linear4bit, Linear8bitLt
 from torchmetrics.functional import calibration_error, accuracy
-# from bayesadapt.lorawrappers.utils import wrap_lora_layers 
 
 class Trainer:
     def __init__(self, cfg):
@@ -196,7 +195,6 @@ class Trainer:
             for name, child in module.named_children():
                 is_target = name in target_modules
                 is_lora = isinstance(child, LoraLayer)
-                # is_linear = isinstance(child, Linear) or isinstance(child, Linear4bit) or isinstance(child, Linear8bitLt)
                 is_linear = isinstance(child, (Linear, Linear4bit, Linear8bitLt))
                 if is_target and is_lora and is_linear:
                     module._modules[name] = wrapper_fn(child)
@@ -242,6 +240,24 @@ class Trainer:
             trust_remote_code=True, 
             padding_side='left'
         )
+
+    def update_dataloaders(self, train_dataset=None, test_dataset=None):
+        if train_dataset is not None:
+            self.trainloader = torch.utils.data.DataLoader(
+                train_dataset,
+                batch_size=self.cfg.optim.batch_size,
+                shuffle=True,
+                num_workers=0,
+                collate_fn=instantiate(self.cfg.collate_fn, self.processor)
+            )
+        if test_dataset is not None:
+            self.testloader = torch.utils.data.DataLoader(
+                test_dataset,
+                batch_size=self.cfg.optim.batch_size,
+                shuffle=False,
+                num_workers=0,
+                collate_fn=instantiate(self.cfg.collate_fn, self.processor)
+            )
         
     def load_dataloaders(self):
         train_dataset = instantiate(self.cfg.train_dataset, split=self.cfg.optim.train_split)
@@ -344,26 +360,30 @@ class Trainer:
             'peak_memory': peak_memory,
         }
 
-    def train(self):
+    def train(self, save=True, use_wandb=True):
         self.load_optimizer()
-        wandb.init(
-            project=self.cfg.wandb.project,
-            name=self.expdir.replace('logs/', '').replace('/', '_'),
-            entity=os.environ.get("WANDB_ENTITY", None),
-            config=dict(self.cfg),
-        )
+        if use_wandb:
+            wandb.init(
+                project=self.cfg.wandb.project,
+                name=self.expdir.replace('logs/', '').replace('/', '_'),
+                entity=os.environ.get("WANDB_ENTITY", None),
+                config=dict(self.cfg),
+            )
         self.model.train()
         dataloader = cycle(self.trainloader)
         for step in trange(self.cfg.optim.max_train_steps, desc="Step", disable=not self.cfg.pbar):
             batch = next(dataloader)
             batch = move_to_device(batch, self.device)
             log = self.train_step(batch)
-            wandb.log(log)
+            if use_wandb:
+                wandb.log(log)
         del dataloader # needed to avoid hanging 
-        wandb.finish()
-        self.save_model()
+        if use_wandb:
+            wandb.finish()
+        if save:
+            self.save_model()
 
-    def evaluate(self, use_train=False, save=True):
+    def evaluate(self, use_train=False, save=True, verbose=True):
         self.model.eval()
         if save:
             os.makedirs(self.evaldir, exist_ok=True)
@@ -409,11 +429,12 @@ class Trainer:
             result['NLL'] = F.nll_loss(test_logprobs, test_labels, reduction="mean").item()
             result['Brier'] = brier_score(test_probs, test_labels).item()
             results.append(result)
-            print(result)
+            if verbose:
+                print(result)
         
         if save:
             json_path = os.path.join(self.evaldir, "metrics.json")
             with open(json_path, "w") as f:
                 json.dump(results, f)
                 f.write("\n")
-        return results
+        return results, test_logits

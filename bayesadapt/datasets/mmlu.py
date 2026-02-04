@@ -1,3 +1,4 @@
+import json
 from torch.utils.data import Dataset
 from datasets import load_dataset, concatenate_datasets, get_dataset_config_names
 
@@ -46,12 +47,17 @@ class MMLU(Dataset):
 
 class MMLUPro(Dataset):
     labels = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J']
-    def __init__(self, split='test'):
+    def __init__(self, split='test', split_fname=None):
         if split not in ['test', 'validation', 'train']:
             raise ValueError(f"Unknown split: {split}")
         if split == 'train':
             split = 'validation' # MMLUPro does not have a train set so we use validation as train
         self.data = load_dataset("TIGER-Lab/MMLU-Pro")[split]
+
+        if split == 'test' and split_fname is not None:
+            with open(split_fname, 'r') as f:
+                qids = set(json.load(f))
+            self.data = self.data.filter(lambda x: x['question_id'] in qids)
 
     def __len__(self):
         return len(self.data)
