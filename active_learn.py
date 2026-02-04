@@ -1,3 +1,4 @@
+import math
 import json
 import torch
 import numpy as np
@@ -11,6 +12,7 @@ import os
 import hydra
 from hydra.utils import instantiate
 from datasets import concatenate_datasets
+from bayesadapt.utils import average_log_probs
 
 
 @hydra.main(config_path="./conf", config_name="default", version_base=None)
@@ -20,12 +22,16 @@ def main(cfg):
     pool_dataset = MMLUPro(split='test', split_fname='./splits/mmlupro_pool_ids.json')
     test_dataset = MMLUPro(split='test', split_fname='./splits/mmlupro_test_ids.json')
 
-    num_select = 70
-    for i in range(10):
+    num_select = 100
+    for i in range(100):
         trainer = instantiate(cfg.trainer, cfg=cfg) #cold start each time
         trainer.update_dataloaders(train_dataset=train_dataset, test_dataset=pool_dataset)
         trainer.train(save=False, use_wandb=False)
-        pool_metrics, entropies = trainer.evaluate(save=False)
+        pool_metrics, logits = trainer.evaluate(save=False, verbose=False)
+        logprobs = average_log_probs(logits) #B x C
+        num_classes = logprobs.shape[1]
+        probs = torch.exp(logprobs)
+        entropies = -torch.sum(probs * logprobs, dim=1) / math.log(num_classes)
 
         selected_qids = torch.topk(
             entropies,
@@ -52,16 +58,3 @@ def main(cfg):
 
 if __name__ == "__main__":
     main()
-
-# processor = AutoProcessor.from_pretrained(
-    # 'Qwen/Qwen3-8B',
-    # trust_remote_code=True, 
-    # padding_side='left'
-# )
-# dataloader = torch.utils.data.DataLoader(
-    # dataset,
-    # batch_size=1,
-    # shuffle=False,
-    # num_workers=0,
-    # collate_fn=partial(instruct_collate_fn, processor)
-# )
