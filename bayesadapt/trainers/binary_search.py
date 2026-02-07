@@ -35,7 +35,9 @@ class BinarySearcher(Trainer):
     def train(self):
         self.model.eval()
         set_cov(self.model, beta=0.0)
-        orig_nll = super().evaluate(use_train=True, save=False)[0]['NLL']
+        # orig_nll = super().evaluate(use_train=True, save=False)[0]['NLL']
+        metrics, logits = super().evaluate(use_train=True, save=False)
+        orig_nll = metrics[0]['NLL']
         print(f"Original NLL with beta=0.0: {orig_nll}")
         low, high = self.cfg.optim.low_start, self.cfg.optim.high_start
         best = high  
@@ -43,7 +45,8 @@ class BinarySearcher(Trainer):
             mid = (low + high) / 2
             print(t, low, high, mid)
             set_cov(self.model, beta=mid)
-            new_nll = super().evaluate(use_train=True, save=False)[0]['NLL']
+            metrics, logits = super().evaluate(use_train=True, save=False)
+            new_nll = metrics[0]['NLL']
 
             #loss_change_ratio = (abs(current_nll_loss.item() - ori_nll_loss.item()) / ori_nll_loss.item())/self.all_ori_predicted_classes.size(0)
             
