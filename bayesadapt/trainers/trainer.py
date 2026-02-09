@@ -409,9 +409,11 @@ class Trainer:
             elapsed_times = torch.tensor(elapsed_times[5:]) / 1000.0 #convert to seconds
             peak_memories = torch.tensor(peak_memories[5:]) / (1024 ** 3) #convert to GB
 
+                
+            logits_dict = dict(zip(test_ids, test_logits))
+
             if save:
                 pt_fname = os.path.join(self.evaldir, f"test_logits_seed{seed.item()}.pt")
-                logits_dict = dict(zip(test_ids, test_logits))
                 torch.save(logits_dict, pt_fname)
 
             test_logits = test_logits.to(torch.float64) #use higher precision for stability
@@ -437,4 +439,4 @@ class Trainer:
             with open(json_path, "w") as f:
                 json.dump(results, f)
                 f.write("\n")
-        return results, test_logits
+        return results, logits_dict
