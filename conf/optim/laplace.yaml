@@ -17,6 +17,12 @@ method: marglik
 n_steps: 100
 lr: 1e-1
 
+nll_optimizer:
+  _target_: torch.optim.AdamW
+  lr: 1.0e-4
+  eps: 1.0e-6
+
+
 #nll_scheduler:
   #_target_: bayesadapt.schedulers.BLoBNLLScheduler
   #warmup_ratio: ${optim.warmup_ratio}

@@ -16,6 +16,29 @@ class BinarySearcher(Trainer):
         counts['num_total_params'] += 1
         return counts
 
+    @property
+    def model(self):
+        if self._model is None:
+            self.load_model()
+            if 'lora' in self.cfg:
+                self.load_lora()
+                self.wrapped = False
+                # if 'wrapper' in self.cfg.lora:
+                    # self.wrap_lora_layers()
+
+            # if self.cfg.load_pretrained_checkpoint:
+                # checkpoint_path = os.path.join(self.expdir, "state_dict.pt")
+                # sd = torch.load(checkpoint_path, map_location='cpu')
+                # self._model.load_state_dict(sd, strict=False)
+                # print('model loaded from', checkpoint_path)
+            
+            # params_info_path = os.path.join(self.expdir, "param_counts.json")
+            # with open(params_info_path, "w") as f:
+                # json.dump(self.param_counts, f)
+        
+        return self._model
+
+
     def load_model(self):
         super().load_model()
         sd_path = os.path.join(self.expdir, "state_dict.pt")
@@ -32,7 +55,13 @@ class BinarySearcher(Trainer):
         torch.save(sd, os.path.join(self.expdir, "state_dict.pt"))
         print(f"Saved state dict with beta: {self.beta}")
 
-    def train(self):
+    def train(self, save=True, use_wandb=False):
+        if not self.cfg.lora.load_mle_checkpoint:
+            super().train(save=save, use_wandb=use_wandb)
+        if not self.wrapped:
+            self.wrap_lora_layers()
+            self.wrapped = True
+
         self.model.eval()
         set_cov(self.model, beta=0.0)
         # orig_nll = super().evaluate(use_train=True, save=False)[0]['NLL']
@@ -41,7 +70,7 @@ class BinarySearcher(Trainer):
         print(f"Original NLL with beta=0.0: {orig_nll}")
         low, high = self.cfg.optim.low_start, self.cfg.optim.high_start
         best = high  
-        for t in range(self.cfg.optim.max_train_steps):
+        for t in range(5):
             mid = (low + high) / 2
             print(t, low, high, mid)
             set_cov(self.model, beta=mid)
@@ -61,7 +90,8 @@ class BinarySearcher(Trainer):
 
         
         self.beta = best
-        self.save_model()
+        if save:
+            self.save_model()
         # print(f"Best beta found: {best}")
         # set_cov(self.model, beta=best)
         # return super().evaluate(use_train=False, save=True)

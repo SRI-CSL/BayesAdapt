@@ -18,6 +18,8 @@ class LaplaceTrainer(Trainer):
         return 'laplace'
 
     def compute_logits(self, inputs):
+        if self.model.training:
+            return super().compute_logits(inputs)
         samples = 100000
         with torch.no_grad():
             f_mu, f_var = self.la._glm_predictive_distribution(inputs)
@@ -49,7 +51,7 @@ class LaplaceTrainer(Trainer):
             'peak_memory': peak_memory,
         }
 
-    def evaluate(self):
+    def evaluate(self, **kwargs):
         self.model.eval()
         self.la = Laplace(
             WrappedModel(self.model),
@@ -64,4 +66,4 @@ class LaplaceTrainer(Trainer):
             n_steps=self.cfg.optim.n_steps,
             lr=self.cfg.optim.lr,
         )
-        super().evaluate()
+        super().evaluate(**kwargs)
