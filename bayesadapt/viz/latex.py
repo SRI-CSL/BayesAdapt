@@ -1,4 +1,6 @@
 import pandas as pd
+from .style import wrapper2label, label2wrapper, metric2arrow
+from . import query
 
 def latex_escape(s: str) -> str:
     # at minimum underscore; plus a few common LaTeX specials
@@ -19,22 +21,21 @@ def latex_escape(s: str) -> str:
         out.append(repl.get(ch, ch))
     return "".join(out)
 
-def _flatten_columns(df: pd.DataFrame) -> pd.DataFrame:
-    df = df.copy()
-    if isinstance(df.columns, pd.MultiIndex):
-        flat = []
-        for a, b in df.columns.to_flat_index():
-            if b is None or b == "":
-                flat.append(str(a))
-            else:
-                flat.append(f"{a}_{b}")
-        df.columns = flat
-    return df
+# def _flatten_columns(df: pd.DataFrame) -> pd.DataFrame:
+    # df = df.copy()
+    # if isinstance(df.columns, pd.MultiIndex):
+        # flat = []
+        # for a, b in df.columns.to_flat_index():
+            # if b is None or b == "":
+                # flat.append(str(a))
+            # else:
+                # flat.append(f"{a}_{b}")
+        # df.columns = flat
+    # return df
 
-def _prep_df(id_df: pd.DataFrame) -> pd.DataFrame:
-    # make exp_keys queryable as columns, and make metric columns like ACC_mean/ACC_std
-    df = id_df.reset_index() if isinstance(id_df.index, pd.MultiIndex) else id_df.copy()
-    return _flatten_columns(df)
+# def _prep_df(id_df: pd.DataFrame) -> pd.DataFrame:
+    # df = id_df.reset_index() if isinstance(id_df.index, pd.MultiIndex) else id_df.copy()
+    # return _flatten_columns(df)
 
 def _format_pm(mean: float, std: float, metric: str) -> str:
     # If ACC/ECE look like fractions, auto-convert to percent
@@ -58,16 +59,16 @@ def make_latex_table(
     prompt_type: str = "instruct",
     quant: str = "16bit",
     metrics: list[str] = ("ACC", "ECE", "NLL"),
-    methods_map: dict[str, str] = METHODS_MAP,
+    methods_map: dict[str, str] = label2wrapper,
     caption: str | None = None,
 ) -> str:
-    df = _prep_df(id_df)
+    # df = _prep_df(id_df)
 
     # sanity: required columns
-    required = {"model", "rank", "prompt_type", "quant", "dataset", "wrapper"}
-    missing = required - set(df.columns)
-    if missing:
-        raise ValueError(f"id_df is missing required columns after prep: {sorted(missing)}")
+    # required = {"model", "rank", "prompt_type", "quant", "dataset", "wrapper"}
+    # missing = required - set(df.columns)
+    # if missing:
+        # raise ValueError(f"id_df is missing required columns after prep: {sorted(missing)}")
 
     ncols = 2 + len(datasets)
     col_spec = "@{}" + ("c" * ncols) + "@{}"
@@ -91,45 +92,51 @@ def make_latex_table(
     lines.append(header.rstrip("\n"))
     lines.append("\\midrule")
     
-    up_metrics = {"ACC"}  # everything else treated as "down"
     method_display_names = list(methods_map.keys())
 
     for mi, metric in enumerate(metrics):
-        arrow = "\\uparrow" if metric in up_metrics else "\\downarrow"
+        arrow = "\\uparrow" if metric2arrow[metric] == '↑' else "\\downarrow"
         lines.append(f"\\multirow{{{len(method_display_names)}}}{{*}}{{\\textbf{{{latex_escape(metric)} ($${arrow}$$)}}}}".replace("$$", "$"))
 
         for display_name, wrapper_code in methods_map.items():
             row = [f"& {latex_escape(display_name)}"]
 
             for ds in datasets:
-                sub = df[
-                    (df["model"] == model)
-                    & (df["rank"] == rank)
-                    & (df["prompt_type"] == prompt_type)
-                    & (df["quant"] == quant)
-                    & (df["dataset"] == ds)
-                    & (df["wrapper"] == wrapper_code)
-                ]
+                # sub = df[
+                    # (df["model"] == model)
+                    # & (df["rank"] == rank)
+                    # & (df["prompt_type"] == prompt_type)
+                    # & (df["quant"] == quant)
+                    # & (df["dataset"] == ds)
+                    # & (df["wrapper"] == wrapper_code)
+                # ]
 
-                if sub.empty:
+                qdf = query(id_df, model=model, rank=rank, prompt_type=prompt_type, quant=quant, dataset=ds, wrapper=wrapper_code)
+
+                #if sub.empty:
+                if qdf.empty:
                     row.append("& TBD")
                     continue
 
                 # if multiple rows match (e.g., because num_* params differ), pick a stable choice
-                if len(sub) > 1:
+                #if len(sub) > 1:
+                if len(qdf) > 1:
+                    import ipdb; ipdb.set_trace() # noqa
                     pick_col = "num_trainable_params" if "num_trainable_params" in sub.columns else None
                     if pick_col:
                         sub = sub.sort_values(pick_col, ascending=False)
                     sub = sub.iloc[[0]]
 
-                mean_col = f"{metric}_mean"
-                std_col = f"{metric}_std"
-                if mean_col not in sub.columns or std_col not in sub.columns:
-                    row.append("& TBD")
-                    continue
+                # mean_col = f"{metric}_mean"
+                # std_col = f"{metric}_std"
+                # if mean_col not in sub.columns or std_col not in sub.columns:
+                    # row.append("& TBD")
+                    # continue
 
-                mean = float(sub[mean_col].iloc[0])
-                std = float(sub[std_col].iloc[0])
+                # mean = float(sub[mean_col].iloc[0])
+                # std = float(sub[std_col].iloc[0])
+                mean = qdf[(metric, "mean")].item()
+                std = qdf[(metric, "std")].item()
                 row.append(f"& {_format_pm(mean, std, metric)}")
 
             lines.append(" ".join(row) + " \\\\")
