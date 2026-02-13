@@ -1,3 +1,5 @@
+
+#dataset@train_dataset=winogrande_xs,winogrande_s,winogrande_m,winogrande_l \
 python evaluate.py --multirun \
     hydra/launcher=ray \
     +hydra.launcher.ray.init.num_gpus=8 \
@@ -8,8 +10,8 @@ python evaluate.py --multirun \
     lora.load_mle_checkpoint=True \
     lora.config.r=8 \
     quantize_bits=16 \
-    hf_model=Qwen/Qwen3-0.6B,Qwen/Qwen3-1.7B,Qwen/Qwen3-4B,Qwen/Qwen3-8B \
-    dataset@train_dataset=winogrande_xs,winogrande_s,winogrande_m,winogrande_l \
+    hf_model=Qwen/Qwen3-0.6B,Qwen/Qwen3-1.7B,Qwen/Qwen3-4B \
+    dataset@train_dataset=ARC-Easy,ARC-Challenge,obqa \
     collate_fn=instruct\
     seed=0,1,2,3\
     pbar=False \

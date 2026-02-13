@@ -1,4 +1,7 @@
-python active_learn.py \
+python active_learn.py --multirun \
+    hydra/launcher=ray \
+    +hydra.launcher.ray.init.num_gpus=8 \
+    +hydra.launcher.ray.remote.num_gpus=1 \
     +lora=default \
     +lora/wrapper=tfb \
     optim=binary_search \
@@ -10,7 +13,7 @@ python active_learn.py \
     samples.test.backbone=10 \
     dataset@train_dataset=srqa \
     collate_fn=vlm\
-    seed=0\
+    seed=0,1,2,3\
     pbar=True \
     overwrite=True \
     gpu_id=0 #ray will handle CUDA_VISIBLE_DEVICES so we just set gpu_id=0 here

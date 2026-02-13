@@ -9,4 +9,5 @@ python train_and_evaluate.py --multirun \
     collate_fn=vlm\
     seed=0,1,2,3\
     pbar=False \
+    overwrite=True \
     gpu_id=0 #ray will handle CUDA_VISIBLE_DEVICES so we just set gpu_id=0 here
