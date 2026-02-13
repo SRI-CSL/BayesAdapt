@@ -13,6 +13,10 @@ class WrappedModel(torch.nn.Module):
         return logits[:, -1, :]
 
 class LaplaceTrainer(Trainer):
+    def __init__(self, cfg):
+        super().__init__(cfg)
+        self.la = None
+
     @property
     def wrapper_name(self):
         return 'laplace'
@@ -53,17 +57,18 @@ class LaplaceTrainer(Trainer):
 
     def evaluate(self, **kwargs):
         self.model.eval()
-        self.la = Laplace(
-            WrappedModel(self.model),
-            'classification', 
-            prior_precision=self.cfg.optim.prior_precision,
-            subset_of_weights=self.cfg.optim.subset_of_weights,
-            hessian_structure=self.cfg.optim.hessian_structure,
-        )
-        self.la.fit(self.trainloader)
-        prior_precision = self.la.optimize_prior_precision(
-            method=self.cfg.optim.method,
-            n_steps=self.cfg.optim.n_steps,
-            lr=self.cfg.optim.lr,
-        )
-        super().evaluate(**kwargs)
+        if self.la is None:
+            self.la = Laplace(
+                WrappedModel(self.model),
+                'classification', 
+                prior_precision=self.cfg.optim.prior_precision,
+                subset_of_weights=self.cfg.optim.subset_of_weights,
+                hessian_structure=self.cfg.optim.hessian_structure,
+            )
+            self.la.fit(self.trainloader)
+            prior_precision = self.la.optimize_prior_precision(
+                method=self.cfg.optim.method,
+                n_steps=self.cfg.optim.n_steps,
+                lr=self.cfg.optim.lr,
+            )
+        return super().evaluate(**kwargs)
