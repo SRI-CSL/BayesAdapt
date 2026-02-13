@@ -46,7 +46,7 @@ for size in sizes:
     model = f"Qwen3-VL-{size}B-Instruct"
     latex = make_latex_table(
         id_df,
-        model="Qwen3-VL-2B-Instruct",
+        model=model,
         rank=8,
         datasets=["slake", "mmstar", "MathVerse"],
         prompt_type="vlm",
@@ -57,3 +57,19 @@ for size in sizes:
     fname = f"tables/vlm_id_{model}.tex"
     with open(fname, 'w') as f:
         f.write(latex)
+
+for size in sizes:
+    model = f"Qwen3-VL-{size}B-Instruct"
+    latex = make_latex_table(
+        id_df,
+        model=model,
+        rank=8,
+        datasets=["srqa"],
+        prompt_type="vlm",
+        quant="16bit",
+        metrics=["ACC", "ECE", "NLL", "Brier"],
+    )
+
+    print(latex)
+
+
