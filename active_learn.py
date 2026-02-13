@@ -47,27 +47,6 @@ def main(cfg):
     train_dataset.data = pool_dataset.data.filter(lambda x: x[id_key] in initial_train_ids)
     pool_dataset.data = pool_dataset.data.filter(lambda x: x[id_key] not in initial_train_ids)
 
-
-    # train_dataset = MMLUPro(split='train')
-    # pool_dataset = MMLUPro(split='test', split_fname='./splits/mmlupro_pool_ids.json')
-    # pool_ids = pool_dataset.data['question_id']
-    # test_dataset = MMLUPro(split='test', split_fname='./splits/mmlupro_test_ids.json')
-    # id_key = 'question_id'
-    
-    # train_dataset = ARC(split='validation', difficulty='challenge')
-    # pool_dataset = ARC(split='train', difficulty='challenge')
-    # pool_ids = pool_dataset.data['id']
-    # test_dataset = ARC(split='test', difficulty='challenge')
-    #id_key = 'id'
-    # initial_train_size = 10
-    # initial_train_ids = np.random.choice(
-        # pool_ids, 
-        # size=initial_train_size, 
-        # replace=False
-    # ).tolist()
-    # train_dataset = ARC(split='train', difficulty='challenge')
-    # train_dataset.data = pool_dataset.data.filter(lambda x: x[id_key] in initial_train_ids)
-    # pool_dataset.data = pool_dataset.data.filter(lambda x: x[id_key] not in initial_train_ids)
     history = []
     for i in range(20):
         trainer = instantiate(cfg.trainer, cfg=cfg) #cold start each time
@@ -125,13 +104,6 @@ def main(cfg):
             'top_scores': top_values.cpu().tolist(),
         })
 
-        # selection_probs = entropies / entropies.sum()
-        # selected_qids = torch.multinomial(
-            # selection_probs, 
-            # num_samples=num_select, 
-            # replacement=False
-        # ).tolist()
-        # selected_hf = pool_dataset.data.filter(lambda x: x[id_key] in selected_qids)
         train_dataset.data = concatenate_datasets([train_dataset.data, selected_hf])
         pool_dataset.data = pool_dataset.data.filter(lambda x: x[id_key] not in selected_qids)
     
