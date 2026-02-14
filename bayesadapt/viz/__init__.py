@@ -75,7 +75,9 @@ def load_df(root, mode='id', reduce=True):
         elif mode == 'ood':
             keys = ['model', 'quant', 'wrapper', 'rank', 'prompt_type', 'seed']
             row = dict(zip(keys, tokens[1:-2]))
-            row['dataset'] = tokens[-1]
+            trainset = tokens[-4] #name of orinigal id trainset
+            testset = tokens[-1] #name of ood testset
+            row['dataset'] = f"{trainset}/{testset}"
         row['rank'] = int(tokens[4].replace('rank', ''))
         row['seed'] = int(tokens[6][-1])
         if mode == 'id' or mode == 'ood':

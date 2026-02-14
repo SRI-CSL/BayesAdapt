@@ -49,6 +49,7 @@ def main(cfg):
 
     history = []
     for i in range(20):
+        print(f"Round {i+1} of active learning, training on {len(train_dataset)} samples")
         trainer = instantiate(cfg.trainer, cfg=cfg) #cold start each time
         evaldir = trainer.evaldir.replace('id', 'active_learn')
 
