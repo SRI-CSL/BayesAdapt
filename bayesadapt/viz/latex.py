@@ -219,9 +219,14 @@ def make_latex_table(
     metrics: list[str] = ("ACC", "ECE", "NLL"),
     methods_map: dict[str, str] = label2wrapper,
     caption: str | None = None,
+    wrappers=None,
 ) -> str:
     ncols = 2 + len(datasets)
     col_spec = "@{}" + ("c" * ncols) + "@{}"
+
+    if wrappers is None:
+        wrappers = methods_map.values()
+
 
     ds_headers = [latex_escape(d) for d in datasets]
     header = (
@@ -242,21 +247,25 @@ def make_latex_table(
     lines.append(header.rstrip("\n"))
     lines.append("\\midrule")
     
-    method_display_names = list(methods_map.keys())
+    #method_display_names = list(methods_map.keys())
+    method_display_names = [wrapper2label.get(w, w) for w in wrappers]
 
     for mi, metric in enumerate(metrics):
         arrow = "\\uparrow" if metric2arrow[metric] == '↑' else "\\downarrow"
         lines.append(f"\\multirow{{{len(method_display_names)}}}{{*}}{{\\textbf{{{latex_escape(metric)} ($${arrow}$$)}}}}".replace("$$", "$"))
-
-        for display_name, wrapper in methods_map.items():
+        
+        # for display_name, wrapper in methods_map.items():
+        for wrapper in wrappers:
+            display_name = wrapper2label.get(wrapper, wrapper)
             row = [f"& {latex_escape(display_name)}"]
+
 
             for dataset in datasets:
                 qdf = query(
                     id_df, 
                     model=model, 
-                    rank=rank, 
-                    prompt_type=prompt_type, 
+                    rank=rank if wrapper != "zeroshot" else 0,
+                    prompt_type=prompt_type,
                     quant=quant, 
                     dataset=dataset,
                     wrapper=wrapper
@@ -278,7 +287,10 @@ def make_latex_table(
                 mean = qdf[(metric, "mean")].item()
                 std = qdf[(metric, "std")].item()
 
-                row.append(f"& {mean:.3f}$_{{\\pm {std:.3f}}}$")
+                if pd.isna(std):
+                    row.append(f"& {mean:.3f}")
+                else:
+                    row.append(f"& {mean:.3f}$_{{\\pm {std:.3f}}}$")
 
             lines.append(" ".join(row) + " \\\\")
 

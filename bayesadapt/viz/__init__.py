@@ -2,6 +2,7 @@ import json
 import glob
 import pandas as pd
 import numpy as np
+from tqdm import tqdm
 
 CLS_METRICS = ['ACC', 'ECE', 'NLL', 'Brier']
 RUNTIME_METRICS = ['peak_memory', 'latency']
@@ -67,7 +68,7 @@ def reduce_seeds(df, mode='id'):
 def load_df(root, mode='id', reduce=True):
     expdirs = find_expdirs(root, mode=mode)
     df = []
-    for edir in expdirs:
+    for edir in tqdm(expdirs, desc=f"Loading {mode} experiments"):
         tokens = edir.replace(root, '').split('/')
         if mode == 'id' or mode == 'active_learn':
             keys = ['model', 'quant', 'wrapper', 'rank', 'prompt_type', 'seed', 'dataset']

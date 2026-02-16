@@ -24,11 +24,15 @@ class MMLU(Dataset):
                 topic_data = load_dataset("edinburgh-dawg/mmlu-redux-2.0", topic)[split]
                 self.data.append(topic_data)
             self.data = concatenate_datasets(self.data)
+            self.topic = "all"
         else:
             self.data = load_dataset("edinburgh-dawg/mmlu-redux-2.0", topic)[split]
+            self.topic = topic
 
         if remove_errors:
             self.data = self.data.filter(lambda x: x['error_type'] == 'ok')
+
+        self.split = split
 
     def __len__(self):
         return len(self.data)
@@ -42,6 +46,7 @@ class MMLU(Dataset):
         return {
             'prompt': prompt.strip(),
             'label': item['answer'],
+            'question_id': f"{self.topic}_{self.split}_{idx}",
         }
 
 

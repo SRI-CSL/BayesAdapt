@@ -45,6 +45,7 @@ class BinarySearcher(Trainer):
         if os.path.exists(sd_path):
             sd = torch.load(sd_path, map_location='cpu')
             self.beta = sd['beta']
+            print(f"Loaded state dict with beta: {self.beta}")
         else:
             self.beta = 0.0  # default value
             print("No saved state dict found. Initializing beta to 0.0")
@@ -56,6 +57,7 @@ class BinarySearcher(Trainer):
         print(f"Saved state dict with beta: {self.beta}")
 
     def train(self, save=True, use_wandb=False):
+        self.model.eval()
         if not self.cfg.lora.load_mle_checkpoint:
             super().train(save=save, use_wandb=use_wandb)
         if not self.wrapped:
@@ -97,5 +99,9 @@ class BinarySearcher(Trainer):
         # return super().evaluate(use_train=False, save=True)
 
     def evaluate(self, **kwargs):
+        self.model.eval()
+        if not self.wrapped:
+            self.wrap_lora_layers()
+            self.wrapped = True
         set_cov(self.model, beta=self.beta)
         return super().evaluate(**kwargs)

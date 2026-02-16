@@ -8,16 +8,17 @@ from .lorawrapper import LoraWrapper
 class TempScaleLoraWrapper(LoraWrapper):
     def __init__(self, lora_layer: LoraLayer, per_class: bool = True, *args: Any, **kwargs: Any):
         super().__init__(lora_layer, *args, **kwargs)
-        #set grad off for everything except temp_scale
+        #set grad off for everything except the temp
         for name, param in self.named_parameters():
             param.requires_grad = False
 
         if per_class:
-            self.temp_scale = nn.Parameter(torch.ones(lora_layer.out_features))
+            self.lora_temp_scale = nn.Parameter(torch.ones(lora_layer.out_features))
         else:
-            self.temp_scale = nn.Parameter(torch.ones(1))
+            self.lora_temp_scale = nn.Parameter(torch.ones(1))
 
     def forward(self, x: torch.Tensor, *args: Any, **kwargs: Any):
         output = super().forward(x, *args, **kwargs)
-        output = output * self.temp_scale
+        output = output * self.lora_temp_scale
+        print(self.lora_temp_scale)
         return output

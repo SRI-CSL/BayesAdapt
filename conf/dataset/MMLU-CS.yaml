@@ -1,0 +1,3 @@
+_target_: bayesadapt.datasets.mmlu.MMLU
+topic: college_computer_science
+remove_errors: true

@@ -30,7 +30,7 @@ wrapper2label = {
 label2wrapper = {v: k for k, v in wrapper2label.items()}
 
 style_dict = {
-    "laplace": {
+    "mle": {
         "color": "#000000",
         "linestyle": (0, (5, 2)),   # dashed
         "marker": "o",
@@ -39,7 +39,7 @@ style_dict = {
         "markerfacecolor": "none",
         "markeredgewidth": 1.6,
     },
-    "mle": {
+    "laplace": {
         "color": "#D55E00",
         "linestyle": "solid",
         "marker": "s",
@@ -69,12 +69,14 @@ style_dict = {
         "markeredgewidth": 0.8,
     },
     "blob": {
-        "color": "#CC79A7",
+        #"color": "#CC79A7",
+        "color": "#bf033c",
         "linestyle": (0, (3, 1, 1, 1)),  # short dash-dot pattern
         "marker": "P",                   # plus-filled
         "linewidth": 2.2,
         "markersize": 7.0,
-        "markerfacecolor": "#CC79A7",
+        #"markerfacecolor": "#CC79A7",
+        "markerfacecolor": "#bf033c",
         "markeredgecolor": "white",
         "markeredgewidth": 0.8,
     },
