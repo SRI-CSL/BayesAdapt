@@ -1,0 +1,22 @@
+export HYDRA_FULL_ERROR=1
+export CUDA_VISIBLE_DEVICES=2
+python active_learn.py --multirun \
+    hydra/launcher=ray \
+    +hydra.launcher.ray.init.num_gpus=1 \
+    +hydra.launcher.ray.remote.num_gpus=1 \
+    +lora=default \
+    +lora/wrapper=deepensemble \
+    lora.config.r=8 \
+    quantize_bits=16  \
+    optim.batch_size=4 \
+    hf_model=Qwen/Qwen3-VL-8B-Instruct \
+    lora.wrapper.ensemble_size=5 \
+    samples.train.backbone=5 \
+    samples.test.backbone=5 \
+    optim.max_train_steps=1000 \
+    dataset@train_dataset=srqa \
+    collate_fn=vlm\
+    seed=0,1,2 \
+    pbar=True \
+    overwrite=True \
+    gpu_id=0 
