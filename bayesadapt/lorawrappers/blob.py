@@ -42,9 +42,6 @@ class BlobLinear(nn.Module):
         self.blobsample = blobsample
     
     def forward(self, x, lora_B, scaling):
-        #W = self.U @ torch.diag(self.s) @ self.Vh
-        # W = torch.diag(self.s) @ self.Vh
-        # W = self.weight
         result = lora_B(F.linear(x, self.weight)) * scaling
 
         if self.blobsample: 
@@ -59,7 +56,6 @@ class BlobLinear(nn.Module):
                 )
                 s_A = (
                     torch.ones(
-                        #(x.size(0), self.rank),
                         (x.size(0), self.lora_A_rho.size(0)),
                         device=x.device,
                         dtype=x.dtype,
@@ -79,7 +75,6 @@ class BlobLinear(nn.Module):
                 )
                 s_A = (
                     torch.ones(
-                        #(x.size(0), x.size(1), self.rank),
                         (x.size(0), x.size(1), self.lora_A_rho.size(0)),
                         device=x.device,
                         dtype=x.dtype,

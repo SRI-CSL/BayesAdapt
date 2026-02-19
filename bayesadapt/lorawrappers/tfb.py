@@ -18,11 +18,7 @@ class TFBLoraWrapper(BlobLoraWrapper):
             B_weight = self.lora_B[adapter_name].weight.clone()
 
             U, s, V = torch.svd(B_weight)
-            # U, s, Vh = torch.linalg.svd(B_weight, full_matrices=False)
             self.s_vals[adapter_name] = s
-            
-            # self.lora_B[adapter_name].weight.data = U @ torch.diag(s)
-            # old_weight = self.lora_A[adapter_name].weight.data.clone()
             
             self.lora_A[adapter_name] = BlobLinear(
                 in_features=self.lora_A[adapter_name].in_features,

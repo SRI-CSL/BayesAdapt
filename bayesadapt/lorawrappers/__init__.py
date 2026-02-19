@@ -4,6 +4,5 @@ from .deepensemble import *
 from .mcdropout import *
 from .blob import *
 from .scalabl import *
-from .svd import *
 from .tfb import *
 from .tempscale import *

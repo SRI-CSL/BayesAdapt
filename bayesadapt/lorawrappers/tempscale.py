@@ -20,5 +20,4 @@ class TempScaleLoraWrapper(LoraWrapper):
     def forward(self, x: torch.Tensor, *args: Any, **kwargs: Any):
         output = super().forward(x, *args, **kwargs)
         output = output * self.lora_temp_scale
-        print(self.lora_temp_scale)
         return output
