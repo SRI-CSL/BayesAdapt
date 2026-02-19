@@ -20,17 +20,19 @@ class VITrainer(Trainer):
     def train_step(self, batch):
         log = super().train_step(batch)
         self.kl_optimizer.zero_grad()
+
+        #collect kl divergences from all VILoraWrapper modules
         kl_divs = []
         for module in self.model.modules():
             if isinstance(module, VILoraWrapper):
                 kl_divs.append(module.kl_div)
-
         kl_loss = torch.sum(torch.stack(kl_divs), dim=0)
         assert not math.isnan(kl_loss)
+
         kl_loss.backward()
         self.kl_optimizer.step()
         self.kl_scheduler.step()
         log['train/kl_loss'] = kl_loss.item()
         log['train/elbo'] = log['train/nll_loss'] + kl_loss.item()
-        log['train/kl_lr'] = self.kl_optimizer.param_groups[0]["lr"]
+        log['train/kl_lr'] = self.kl_optimizer.param_groups[0]['lr']
         return log
