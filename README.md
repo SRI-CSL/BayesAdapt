@@ -31,7 +31,11 @@ python train_and_evaluate.py \
     seed=0 \
     gpu_id=0
 ```
+By default, this will automatically save a trained adapter and evaluation results to:
 
+```logs/Qwen/Qwen3-8B/16bit/mle/rank8/instruct/seed0/winogrande_s```
+
+### 🎁 Wrapping LoRA
 From here its straightforward to apply a ```lorawrapper```. For example, for BLoB on the SLAKE dataset:
 ```bash
 python train_and_evaluate.py \
@@ -61,5 +65,6 @@ python train_and_evaluate.py \
   year={2025}
 }
 ```
+
 
 
