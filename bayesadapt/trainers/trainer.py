@@ -262,20 +262,7 @@ class Trainer:
     def load_dataloaders(self):
         train_dataset = instantiate(self.cfg.train_dataset, split=self.cfg.optim.train_split)
         test_dataset = instantiate(self.cfg.test_dataset, split='test')
-        self.trainloader = torch.utils.data.DataLoader(
-            train_dataset,
-            batch_size=self.cfg.optim.batch_size,
-            shuffle=True,
-            num_workers=0,
-            collate_fn=instantiate(self.cfg.collate_fn, self.processor)
-        )
-        self.testloader = torch.utils.data.DataLoader(
-            test_dataset,
-            batch_size=self.cfg.optim.batch_size,
-            shuffle=False,
-            num_workers=0,
-            collate_fn=instantiate(self.cfg.collate_fn, self.processor)
-        )
+        self.update_dataloaders(train_dataset, test_dataset)
 
     def save_model(self):
         sd = self.model.state_dict()
@@ -289,12 +276,6 @@ class Trainer:
         except:
             model_output = self.model.model(**inputs) #non-peft models
         feats = model_output.last_hidden_state[:, -1] #last layer, last token
-        return feats #(batch_size, hidden_size)
-
-    #old version using hidden states which does not work with Qwen3-VL
-    def compute_featsv0(self, inputs):
-        model_output = self.model(**inputs, output_hidden_states=True)
-        feats = model_output.hidden_states[-1][:, -1] #last layer, last token
         return feats #(batch_size, hidden_size)
 
     def compute_logits(self, inputs):

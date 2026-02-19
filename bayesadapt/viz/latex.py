@@ -193,7 +193,11 @@ def make_latex_ood_table(
                         q_ood = _pick_single_row(q_ood)
                         mean = q_ood[(metric, "mean")].item()
                         std = q_ood[(metric, "std")].item()
-                        row_cells.append(f"{mean:.3f}$_{{\\pm {std:.3f}}}$")
+                        
+                        if pd.isna(std):
+                            row_cells.append(f"{mean:.3f}")
+                        else:
+                            row_cells.append(f"{mean:.3f}$_{{\\pm {std:.3f}}}$")
 
             lines.append(" & ".join(row_cells) + r" \\")
 

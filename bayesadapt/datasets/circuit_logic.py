@@ -1,9 +1,7 @@
-from datasets import load_dataset
-from torch.utils.data import Dataset, DataLoader
-import reasoning_gym
+from torch.utils.data import Dataset
 from datasets import Dataset as HFDataset
+import reasoning_gym
 
-prompt_template = "Consider the following logical expression: {expression}\nWhat is the truth value of this expression given the following variable assignments?\n"
 class CircuitLogic(Dataset):
     labels = ['0', '1']
     def __init__(self, split='train', representation='expression'):
@@ -17,16 +15,6 @@ class CircuitLogic(Dataset):
         else:  # test
             data = reasoning_gym.create_dataset('circuit_logic', size=1000, seed=44)
 
-        # expression_legend = {
-            # '&': 'AND',
-            # '↑': 'NAND',
-            # '⊕': 'XOR',
-            # "'": 'Negate',
-            # "+": 'OR'
-        # }
-        # expression_legend = "\n".join([f"{k}: {v}" for k, v in expression_legend.items()])
-        # expression_legend = f"Legend:\n{expression_legend}".strip()
-
         self.data = []
         for i, x in enumerate(data):
             question = x['question']
@@ -36,7 +24,7 @@ class CircuitLogic(Dataset):
             if representation == 'expression':
                 logic = x['metadata']['expression']
 
-                #use same symbols as in gates, for slightly more fair ood eval
+                #use same symbols as in gates, for more fair ood eval
                 logic = logic.replace('&', '&&')
                 logic = logic.replace('↑', '↑↑')
                 logic = logic.replace('⊕', '⊕⊕')
@@ -56,20 +44,11 @@ class CircuitLogic(Dataset):
 
         self.data = HFDataset.from_list(self.data)
 
-
-
     def __len__(self):
         return len(self.data)
     
     def __getitem__(self, idx):
         item = self.data[idx]
-
-        # prompt = prompt_template.format(expression=item['expression'])
-        # for var, val in item['assignments'].items():
-            # prompt += f"{var} = {val}\n"
-
-        # prompt += "Output 0 or 1 only."
-
         return {
             'prompt': item['prompt'].strip(),
             'label': self.labels.index(item['answer']),

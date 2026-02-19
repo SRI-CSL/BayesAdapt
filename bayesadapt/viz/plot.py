@@ -26,6 +26,64 @@ def plot_with_err(x, y_mean, y_std, label=None, plot_kwargs=None, ax=None):
         )
     return ax
 
+def plot_winogrande(id_df, 
+                    model='Qwen3-8B',
+                    prompt_type='instruct', 
+                    rank=8, 
+                    quant='16bit',
+                    save_path='plots/id_plot.png'):
+    fig, axes = plt.subplots(1, len(CLS_METRICS), figsize=(25, 5), sharey=False)
+    metrics = ['ACC', 'ECE', 'NLL', 'Brier']
+
+    dataset_sizes = ['xs','s','m','l']
+    x_vals = [160,640,2558,10234]
+    model = 'Qwen3-8B'
+    rank = 8
+
+    # base_query_str = f"model == '{model}' and prompt_type == '{prompt_type}' and quant == '{quant}' and rank == {rank}"
+
+    for ax, metric in zip(axes, CLS_METRICS):
+        arrow = metric2arrow[metric]
+        for wrapper in ['mle', 'scalabl', 'blob', 'mcdropout', 'laplace','tfb', 'deepensemble', 'map', 'tempscale']:
+            label = wrapper2label[wrapper]
+            y_mean, y_std = [], []
+            for size in dataset_sizes:
+                # query_str = base_query_str + f" and wrapper == '{wrapper}' and dataset == 'winogrande_{size}'"
+                #metric_df = id_df.groupby(exp_keys)[metric].agg(['mean', 'std'])
+                # q = id_df.query(query_str).reset_index()
+                qdf = query(
+                    id_df,
+                    prompt_type=prompt_type,
+                    wrapper=wrapper,
+                    dataset=f'winogrande_{size}',
+                    quant=quant,
+                    rank=rank,
+                    model=model
+                )
+                try:
+                    y_mean.append(qdf[(metric, 'mean')].item())
+                    y_std.append(qdf[(metric, 'std')].item())
+                except:
+                    continue
+            ax = plot_with_err(x_vals[0:len(y_mean)], y_mean, None, plot_kwargs=style_dict[wrapper], label=label, ax=ax)
+        ax.grid()
+        ax.set_ylabel(f"{metric} ({arrow})")
+        ax.set_xlabel('Training Set Size (# of Instances)')
+    handles, labels = axes[0].get_legend_handles_labels()
+    fig.legend(
+        handles, labels,
+        loc='lower center',
+        bbox_to_anchor=(0.5, -0.05),
+        ncols=9,          # adjust for readability
+        frameon=True
+    )
+    fig.suptitle(f'Effect of Trianing Set Size using {model} and Winogrande',y=0.95)
+    fig.subplots_adjust(bottom=0.15)
+    for ax in axes:
+         ax.yaxis.set_major_formatter(mticker.FormatStrFormatter('%.2f'))
+    fig.savefig(save_path, bbox_inches='tight', dpi=300)
+
+
 
 def plot_resource(id_df, dataset, prompt_type='instruct', 
             rank=8, 
@@ -153,7 +211,7 @@ def plot_active_learn(active_df,
 
     for ax, metric in zip(axes, CLS_METRICS):
         arrow = metric2arrow[metric]
-        for wrapper in ['mle', 'scalabl', 'mcdropout','map','blob','laplace','tfb']:
+        for wrapper in ['mle', 'scalabl', 'mcdropout','map','blob','laplace','tfb','deepensemble','tempscale']:
             label = wrapper2label[wrapper]
             qdf = query(
                 active_df, 
@@ -212,7 +270,7 @@ def plot_noisy_slake(id_df, ood_df,
     for ax, metric in zip(axes, CLS_METRICS):
         arrow = metric2arrow[metric]
         
-        for wrapper in ['mle', 'scalabl','blob','laplace', 'mcdropout','tfb','tempscale']:
+        for wrapper in ['mle', 'scalabl','blob','laplace', 'mcdropout','tfb','tempscale','deepensemble','map']:
             label = wrapper2label[wrapper]
             y_mean, y_std = [], []
             for std in noise_stds:
@@ -229,7 +287,7 @@ def plot_noisy_slake(id_df, ood_df,
                     y_std.append(qdf[(metric, 'std')].item())
                 except:
                     continue
-            ax = plot_with_err(x[0:len(y_mean)], y_mean, y_std, plot_kwargs=style_dict[wrapper], label=label, ax=ax)
+            ax = plot_with_err(x[0:len(y_mean)], y_mean, None, plot_kwargs=style_dict[wrapper], label=label, ax=ax)
             ax.set_xlabel('Noise STD (pixel units, logscale)')
             
         ax.set_ylabel(f"{metric} ({arrow})")

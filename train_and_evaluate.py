@@ -7,7 +7,7 @@ def main(cfg):
     print(cfg)
     trainer = instantiate(cfg.trainer, cfg=cfg)
     if not os.path.exists(f"{trainer.expdir}/state_dict.pt") or cfg.overwrite:
-        trainer.train()
+        trainer.train(use_wandb=cfg.use_wandb)
     if not os.path.exists(f"{trainer.evaldir}/metrics.json") or cfg.overwrite:
         trainer.evaluate()
 

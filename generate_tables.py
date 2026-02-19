@@ -6,33 +6,33 @@ root = '/project/synthesis/bayesadapt/logs/'
 id_df = load_df(root=root, mode='id')
 sizes = [0.6, 1.7, 4, 8, 14]
 
-latex = make_latex_table(
-        id_df,
-        model="Qwen3-8B",
-        rank=8,
-        datasets=["ARC-Challenge", "obqa", "winogrande_s", "circuit_logic"],
-        prompt_type="instruct",
-        quant="16bit",
-        metrics=["ACC",  "NLL"],
-        wrappers=["zeroshot", "mle"]
-)
-with open("tables/headroom.tex", 'w') as f:
-    f.write(latex)
+# latex = make_latex_table(
+        # id_df,
+        # model="Qwen3-8B",
+        # rank=8,
+        # datasets=["ARC-Challenge", "obqa", "winogrande_s", "circuit_logic"],
+        # prompt_type="instruct",
+        # quant="16bit",
+        # metrics=["ACC",  "NLL"],
+        # wrappers=["zeroshot", "mle"]
+# )
+# with open("tables/headroom.tex", 'w') as f:
+    # f.write(latex)
 
 
-latex = make_latex_table(
-        id_df,
-        model="Qwen3-VL-8B-Instruct",
-        rank=8,
-        datasets=["slake", "srqa", "mmstar", "MathVerse"],
-        prompt_type="vlm",
-        quant="16bit",
-        metrics=["ACC",  "NLL"],
-        wrappers=["zeroshot", "mle"]
-)
+# latex = make_latex_table(
+        # id_df,
+        # model="Qwen3-VL-8B-Instruct",
+        # rank=8,
+        # datasets=["slake", "srqa", "mmstar", "MathVerse"],
+        # prompt_type="vlm",
+        # quant="16bit",
+        # metrics=["ACC",  "NLL"],
+        # wrappers=["zeroshot", "mle"]
+# )
 
-with open("tables/headroom_vlm.tex", 'w') as f:
-    f.write(latex)
+# with open("tables/headroom_vlm.tex", 'w') as f:
+    # f.write(latex)
 
 
 ood_df = load_df(root=root, mode='ood')
