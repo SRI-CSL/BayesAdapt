@@ -18,8 +18,42 @@ Then run ```source .venv/bin/activate``` to load the environment.
 
 To use wandb, make sure the environment variable ```WANDB_ENTITY``` is set to your full wandb username.
 
-## 🚀 Running the Code
-TODO
+## 🔬🧪 Running an experiment
+BayesAdapt uses ```hydra``` configuration to define the parameters of an experiment, allowing us to control options from the command-line.
+For example, we can train and evaluate a simple MLE adapter using the following Python command:
+```bash
+python train_and_evaluate.py \
+    +lora=default \
+    lora.config.r=8 \
+    hf_model=Qwen/Qwen3-8B \
+    dataset@train_dataset=winogrande_s \
+    collate_fn=instruct \
+    seed=0 \
+    gpu_id=0
+```
+By default, this will automatically save a trained adapter and evaluation results to:
+
+```logs/Qwen/Qwen3-8B/16bit/mle/rank8/instruct/seed0/winogrande_s```
+
+### 🎁 Wrapping LoRA
+From here its straightforward to apply a ```lorawrapper```. For example, for BLoB on the SLAKE dataset:
+```bash
+python train_and_evaluate.py \
+    +lora=default \
+    +lora/wrapper=blob \
+    lora.config.r=8 \
+    optim=vi \
+    trainer=vi \
+    optim.kl_optimizer.lr=0.01 \
+    samples.test.backbone=10 \
+    hf_model=Qwen/Qwen3-VL-8B-Instruct \
+    dataset@train_dataset=slake \
+    collate_fn=vlm \
+    seed=0 \
+    gpu_id=0
+```
+
+## 🛠️ Exteding the code 
 
 
 ## 📚 Citation
@@ -31,4 +65,6 @@ TODO
   year={2025}
 }
 ```
+
+
 
