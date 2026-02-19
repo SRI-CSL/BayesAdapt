@@ -31,9 +31,7 @@ def vlm_collate_fn(tokenizer, batch):
     question_ids = [iten['question_id'] for iten in batch]
     messages = []
     for item in batch:
-        #image = Image.open(item['image']).resize((224, 224))
         image = resize_down_only(item['image'], max_size=224)
-        #resize image with aspect ratio preserved
         content = [{'type': 'image', 'image': image},
                    {'type': 'text', 'text': item['prompt']}]
         messages.append([{"role": "user", "content": content}])
@@ -61,7 +59,6 @@ def instruct_collate_fn(tokenizer, batch):
         add_generation_prompt=True,
         enable_thinking=False #Qwen3 specific, doesnt seem to break other models
     )
-    # text_prompts = [text + '{\n"answer": "' for text in text_prompts]
     prompts = tokenizer(
         text_prompts,
         padding=True,

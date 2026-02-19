@@ -21,6 +21,7 @@ class MNIST(Dataset):
             self.data = torch.utils.data.Subset(train_dataset, val_indices)
         elif split == 'test':
             self.data = TorchMNIST(root=self.root, train=False, download=True)
+        self.split = split
 
     def __len__(self):
         return len(self.data)
@@ -30,5 +31,6 @@ class MNIST(Dataset):
         return {
             'prompt': prompt_template.strip(),
             'label': label,
-            'image': image
+            'image': image,
+            'question_id': f"{self.split}_{idx}"
         }

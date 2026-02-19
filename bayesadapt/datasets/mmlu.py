@@ -2,13 +2,6 @@ import json
 from torch.utils.data import Dataset
 from datasets import load_dataset, concatenate_datasets, get_dataset_config_names
 
-#prompt_template = "Answer the multiple choice question below. Output the letter of your choice only.\n{question}\nChoices:\n"
-#Please show your choice in the answer field with only the choice letter, e.g., "answer": "C"."
-#prompt_template = """Answer the multiple choice question below. Output your choice in json format with an "answer" field and only the chosen letter, e.g. {{"answer": "C"}}.\n{question}\nChoices:\n"""
-
-
-
-#prompt_template = """Answer the multiple choice question below in JSON format. Please show your choice in the answer field with only the choice letter, e.g., "answer": "C"."\n{question}\nChoices:\n"""
 prompt_template = "Answer the multiple choice question below. Output the letter of your choice only.\n{question}\nChoices:\n"
 
 class MMLU(Dataset):

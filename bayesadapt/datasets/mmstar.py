@@ -1,18 +1,10 @@
 from datasets import load_dataset, ClassLabel
-from tqdm import tqdm
-import torch
-import os
-# from transformers import AutoTokenizer
 from torch.utils.data import Dataset, DataLoader
 
-# tokenizer = AutoTokenizer.from_pretrained("Qwen/Qwen2.5-7B", trust_remote_code=True, padding_side='left')
-
-
-# prompt_template = "Answer the following question as Yes or No only.\n{question}"
 prompt_template = "Answer the multiple choice question below. Output the letter of your choice only.\n{question}"
 class MMStar(Dataset):
     labels = ['A', 'B', 'C', 'D']
-    def __init__(self, split='train', root='slake_images/imgs/'):
+    def __init__(self, split='train'):
         if split not in ['train', 'validation', 'test']:
             raise ValueError(f"Unknown split: {split}")
 
@@ -27,7 +19,7 @@ class MMStar(Dataset):
             self.data = train_remainder["train"]
         elif split == 'validation':
             self.data = test_val["train"]
-        else:  # split == 'test'
+        else:  # test
             self.data = test_val["test"]
 
 

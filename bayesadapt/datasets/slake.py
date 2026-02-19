@@ -9,7 +9,6 @@ from huggingface_hub import hf_hub_download
 def is_boolean(example):
     return example['answer'] in ['Yes', 'No']
 
-
 def add_gaussian_noise(image, sigma=0.0, per_channel=False, rng=None):
     if sigma <= 0:
         return image
@@ -32,7 +31,6 @@ class SLAKE(Dataset):
             raise ValueError(f"Unknown split: {split}")
 
         self.noise_std = noise_std
-        
         self.image_dir = os.path.join(root, 'imgs')
 
         if not os.path.exists(self.image_dir):
@@ -51,9 +49,7 @@ class SLAKE(Dataset):
         img_path = os.path.join(self.image_dir, item['img_name'])
         image = Image.open(img_path)
         prompt = prompt_template.format(question=item['question'])
-
         image = add_gaussian_noise(image, sigma=self.noise_std, per_channel=False)
-
         return {
             'prompt': prompt.strip(),
             'label': self.labels.index(item['answer']),

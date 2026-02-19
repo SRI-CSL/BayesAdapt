@@ -1,6 +1,4 @@
 from datasets import load_dataset
-from tqdm import tqdm
-import torch
 from torch.utils.data import Dataset
 
 prompt_template = """Read the passage below and answer the question with the words 'true' or 'false'.
@@ -14,15 +12,13 @@ class BoolQ(Dataset):
         #so following prior work, we use validation as test
         if split == 'test':
             self.data = load_dataset("boolq")['validation']
-
         elif split == 'validation':
             import ipdb; ipdb.set_trace() # noqa
-
         elif split == 'train':
             self.data = load_dataset("boolq")['train']
-
         else:
             raise ValueError(f"Unknown split: {split}")
+        self.split = split
 
 
     def __len__(self):
@@ -36,5 +32,6 @@ class BoolQ(Dataset):
         )
         return {
             'prompt': prompt,
-            'label': int(item['answer'])
+            'label': int(item['answer']),
+            'question_id': f"{self.split}_{idx}"
         }

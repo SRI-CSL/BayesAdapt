@@ -1,14 +1,6 @@
-from datasets import load_dataset, ClassLabel, load_from_disk
-from tqdm import tqdm
-import torch
-import os
-# from transformers import AutoTokenizer
+from datasets import load_from_disk
 from torch.utils.data import Dataset, DataLoader
 
-# tokenizer = AutoTokenizer.from_pretrained("Qwen/Qwen2.5-7B", trust_remote_code=True, padding_side='left')
-
-
-# prompt_template = "Answer the following question as Yes or No only.\n{question}"
 prompt_template = "For the provided image of a plot, which of following formulas best describes the relationship between the variables? Output the letter of your choice only.\nChoices:\n"
 class SRQA(Dataset):
     labels = ['A', 'B', 'C', 'D']
