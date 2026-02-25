@@ -48,6 +48,43 @@ python train_and_evaluate.py \
 ```
 
 ## 🛠️ Exteding the code 
+### Adding a new LoRA wrapper
+To demonstrate how to add a new LoRA wrapper we look at ```bayesadapt/lorawrappers/mcdropout.py``` as an example:
+```python
+import torch
+from .lorawrapper import LoraWrapper
+
+class MCDropoutLoraWrapper(LoraWrapper):
+    def __init__(*args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+    def forward(self, x: torch.Tensor, *args, **kwargs):
+        previous_dtype = x.dtype
+        result = self.base_layer(x, *args, **kwargs)
+        for active_adapter in self.active_adapters:
+            if active_adapter not in self.lora_A.keys():
+                continue
+            x = x.to(self.lora_B[active_adapter].weight.dtype)
+            dropout = self.lora_dropout[active_adapter]
+            scaling = self.scaling[active_adapter]
+            x = dropout.train()(x)  # always apply dropout even in eval mode
+            lora_A = self.lora_A[active_adapter]
+            lora_B = self.lora_B[active_adapter]
+            result = result + lora_B(lora_A(x)) * scaling
+        result = result.to(previous_dtype)
+        return result
+```
+MCDropout is a simple approach which modifies the forward pass only slightly, but shows how we have complete control over the LoRA forward pass (note that ``lora_A`` and ``lora_B`` are just linear layers). We can also add new parameters and other state in the ``__init__`` function if desired.
+
+Then to use a wrapper with ``hydra`` we just need to add new config file such as ``conf/lora/wrapper/mcdropout.yaml`` with the content:
+```yaml
+defaults:
+  - default
+
+_partial_: true
+_target_: bayesadapt.lorawrappers.MCDropoutLoraWrapper
+```
+Any wrapper specific args can also be included here so they are controllable at the CLI. 
 
 
 ## 📚 Citation
@@ -65,6 +102,7 @@ Colin Samplawski, Adam D. Cobb, Manoj Acharya, Ramneet Kaur, Susmit Jha <br>
   year={2025}
 }
 ```
+
 
 
 
