@@ -3,13 +3,15 @@ python evaluate.py --multirun \
     +hydra.launcher.ray.init.num_gpus=8 \
     +hydra.launcher.ray.remote.num_gpus=1 \
     +lora=default \
-    lora.config.r=8 \
+    +lora/wrapper=mcdropout \
+    lora.config.lora_dropout=0.1 \
+    samples.test.backbone=10 \
+    n_eval_trials=10 \
     hf_model=Qwen/Qwen3-VL-8B-Instruct \
     dataset@train_dataset=slake \
     dataset@test_dataset=noisy_slake1,noisy_slake2,noisy_slake4,noisy_slake8,noisy_slake16,noisy_slake32,noisy_slake64,noisy_slake128 \
     load_pretrained_checkpoint=True \
     collate_fn=vlm\
     seed=0,1,2,3\
-    pbar=False \
-    overwrite=True \
-    gpu_id=0 #ray will handle CUDA_VISIBLE_DEVICES so we just set gpu_id=0 here
+    pbar=True \
+    gpu_id=0
