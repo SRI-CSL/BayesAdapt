@@ -128,21 +128,44 @@ _target_: bayesadapt.datasets.obqa.OBQA
 split: train
 ```
 
-## 📚 Citation
-It also acts as the official repo for:<br>
-**Scalable Bayesian Low-Rank Adaptation of Large Language Models via Stochastic Variational Subspace Inference**<br>
-Colin Samplawski, Adam D. Cobb, Manoj Acharya, Ramneet Kaur, Susmit Jha <br>
-*Conference on Uncertainty in Artificial Intelligence, 2025*<br>
-[[📄 Paper](https://www.arxiv.org/abs/2506.21408)] [[🌐 OpenReview](https://openreview.net/forum?id=neqGuhC3zS)]
+### Extending the Trainer
+The ```Trainer``` object is defined in a modular way to allow subclasses to make targeted changes. A high-level skeleton of the ```Trainer``` components which one would likely want to control is shown below:
+```python
+class Trainer:
+    def __init__(self, cfg):
+        pass
 
-```bib
-@InProceedings{samplawski2025scalable,
-  title={Scalable Bayesian Low-Rank Adaptation of Large Language Models via Stochastic Variational Subspace Inference},
-  author={Samplawski, Colin and Cobb, Adam D and Acharya, Manoj and Kaur, Ramneet and Jha, Susmit},
-  booktitle={Conference on Uncertainty in Artificial Intelligence},
-  year={2025}
-}
+    def load_model(self):
+        pass
+
+    def load_lora(self):
+        pass
+
+    def wrap_lora_layers(self):
+        pass
+
+    def load_optimizer(self):
+        pass
+
+    def load_processor(self):
+        pass
+
+    def load_dataloaders(self):
+        pass
+
+    def compute_feats(self, inputs):
+        pass
+
+    def compute_logits(self, inputs):
+        pass
+
+    def train_step(self, batch):
+        pass
+
+    def evaluate_step(self, batch):
+        pass
 ```
+
 
 
 
