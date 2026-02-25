@@ -4,13 +4,6 @@ import json
 import torch
 import numpy as np
 from tqdm import tqdm
-from bayesadapt.datasets.mmlu import MMLUPro
-from bayesadapt.datasets.arc import ARC
-from bayesadapt.datasets.srqa import SRQA
-from bayesadapt.datasets.collate import instruct_collate_fn
-from transformers import AutoProcessor
-from functools import partial
-from datasets import load_dataset, ClassLabel
 import os
 import hydra
 from hydra.utils import instantiate
