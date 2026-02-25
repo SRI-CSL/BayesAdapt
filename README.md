@@ -1,5 +1,5 @@
-# BayesAdapt
-BayesAdapt is a library for the Bayesian adaptation of LLMs.
+# 🎒Bayesian Adaptation Gym
+Bayesian Adaptation Gym (BAG) is a library for the Bayesian adaptation of LLMs and VLMs.
 
 It also acts as the official repo for:<br>
 **Scalable Bayesian Low-Rank Adaptation of Large Language Models via Stochastic Variational Subspace Inference**<br>
@@ -8,7 +8,7 @@ Colin Samplawski, Adam D. Cobb, Manoj Acharya, Ramneet Kaur, Susmit Jha <br>
 [[📄 Paper](https://www.arxiv.org/abs/2506.21408)] [[🌐 OpenReview](https://openreview.net/forum?id=neqGuhC3zS)]
 
 ## ⚙️ Installation
-BayesAdapt uses uv to manage requirements. Start by installing uv as described by the [official documentation](https://docs.astral.sh/uv/getting-started/installation).
+BAG uses ``uv`` to manage requirements. Start by installing ``uv`` as described by the [official documentation](https://docs.astral.sh/uv/getting-started/installation).
 
 Clone the code by running: ```git clone https://github.com/SRI-CSL/BayesAdapt.git```
 
@@ -19,7 +19,7 @@ Then run ```source .venv/bin/activate``` to load the environment.
 To use wandb, make sure the environment variable ```WANDB_ENTITY``` is set to your full wandb username.
 
 ## 🔬🧪 Running an experiment
-BayesAdapt uses ```hydra``` configuration to define the parameters of an experiment, allowing us to control options from the command-line.
+BAG uses ```hydra``` configuration to define the parameters of an experiment, allowing us to control options from the command-line.
 For example, we can train and evaluate a simple MLE adapter using the following Python command:
 ```bash
 python train_and_evaluate.py \
@@ -65,6 +65,7 @@ python train_and_evaluate.py \
   year={2025}
 }
 ```
+
 
 
 
