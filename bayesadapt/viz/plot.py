@@ -1,12 +1,20 @@
+import math
 import matplotlib.pyplot as plt
 import matplotlib.ticker as mticker
 from . import CLS_METRICS, query, RUNTIME_METRICS
 from .style import metric2arrow, style_dict, wrapper2label, dataset2label
 import numpy as np
+import glob
+import torch
+from bayesadapt.datasets.slake import SLAKE
+from bayesadapt.utils import average_log_probs
 plt.rcParams["font.weight"] = "bold"
 plt.rcParams["axes.labelweight"] = "bold"
 plt.rcParams["figure.titleweight"] = "bold"
 plt.rcParams["font.size"] = 14
+
+def asym_err(center, lo, hi):
+    return np.array([[center - lo], [hi - center]])  # shape (2,1) for matplotlib
 
 def plot_with_err(x, y_mean, y_std, label=None, plot_kwargs=None, ax=None):
     sort_idx = np.argsort(x)
@@ -44,7 +52,8 @@ def plot_winogrande(id_df,
 
     for ax, metric in zip(axes, CLS_METRICS):
         arrow = metric2arrow[metric]
-        for wrapper in ['mle', 'scalabl', 'blob', 'mcdropout', 'laplace','tfb', 'deepensemble', 'map', 'tempscale']:
+        #for wrapper in ['mle', 'scalabl', 'blob', 'mcdropout', 'laplace','tfb', 'deepensemble', 'map', 'tempscale']:
+        for wrapper in ['mle', 'map', 'tempscale', 'mcdropout','deepensemble','laplace','blob','scalabl','tfb']:
             label = wrapper2label[wrapper]
             y_mean, y_std = [], []
             for size in dataset_sizes:
@@ -211,7 +220,8 @@ def plot_active_learn(active_df,
 
     for ax, metric in zip(axes, CLS_METRICS):
         arrow = metric2arrow[metric]
-        for wrapper in ['mle', 'scalabl', 'mcdropout','map','blob','laplace','tfb','deepensemble','tempscale']:
+        # for wrapper in ['mle', 'scalabl', 'mcdropout','map','blob','laplace','tfb','deepensemble','tempscale']:
+        for wrapper in ['mle', 'map', 'tempscale', 'mcdropout','deepensemble','laplace','blob','scalabl','tfb']:
             label = wrapper2label[wrapper]
             qdf = query(
                 active_df, 
@@ -261,16 +271,15 @@ def plot_noisy_slake(id_df, ood_df,
     quant='16bit',
     save_path='plots/noisy_slake.png'):
 
-    fig, axes = plt.subplots(1, len(CLS_METRICS), figsize=(25, 5), sharey=False)
-    # plt.rcParams.update({'font.size': 12})
+    fig, axes = plt.subplots(1, 3, figsize=(20, 5), sharey=False, gridspec_kw={"wspace": 0.45})
     noise_stds = [0,1,2,4,8,16,32,64,128]
     x = np.arange(len(noise_stds))
     dataset = 'slake'
     
-    for ax, metric in zip(axes, CLS_METRICS):
+    for ax, metric in zip(axes[0:2], ['ACC', 'NLL']):
         arrow = metric2arrow[metric]
         
-        for wrapper in ['mle', 'scalabl','blob','laplace', 'mcdropout','tfb','tempscale','deepensemble','map']:
+        for wrapper in ['mle', 'map','tempscale','mcdropout','deepensemble','laplace','blob','scalabl','tfb']:
             label = wrapper2label[wrapper]
             y_mean, y_std = [], []
             for std in noise_stds:
@@ -288,7 +297,7 @@ def plot_noisy_slake(id_df, ood_df,
                 except:
                     continue
             ax = plot_with_err(x[0:len(y_mean)], y_mean, None, plot_kwargs=style_dict[wrapper], label=label, ax=ax)
-            ax.set_xlabel('Noise STD (pixel units, logscale)')
+            ax.set_xlabel('Noise STD')
             
         ax.set_ylabel(f"{metric} ({arrow})")
         
@@ -296,6 +305,69 @@ def plot_noisy_slake(id_df, ood_df,
         ax.set_xticks(x)
         ax.set_xticklabels(noise_stds)
         ax.grid()
+
+    ds = SLAKE(split='test')
+    id2label = {}
+    for item in ds:
+        qid = item['question_id']
+        label = item['label']
+        id2label[qid] = label
+
+    qids = list(id2label.keys())
+    labels = torch.tensor([id2label[qid] for qid in qids])
+
+    root = f'/project/synthesis/bayesadapt/logs/Qwen/{model}/16bit/'
+    for wrapper in ['mle', 'map','tempscale','mcdropout','deepensemble','laplace','blob','scalabl','tfb']:
+        label = wrapper2label[wrapper]
+        xs, ys = [], []
+
+        for seed in [0,1,2,3]:
+            path = f'{root}/{wrapper}/rank8/vlm/seed{seed}/slake/results/ood/noisy_slake128/'
+            pt_files = glob.glob(f"{path}/*.pt")
+
+            for pt_file in pt_files:
+                logits_dict = torch.load(pt_file)
+                logits = torch.stack([logits_dict[qid] for qid in qids]).to(torch.float64)
+
+                logprobs = average_log_probs(logits)
+                probs = torch.exp(logprobs)
+                preds = probs.argmax(dim=-1)
+
+                H = -torch.sum(probs * logprobs, dim=1) / math.log(2)
+                is_wrong = preds != labels
+
+                acc = (preds == labels).float().mean().item()
+                if is_wrong.any():
+                    H_mis = H[is_wrong].mean().item()
+                    xs.append(H_mis)
+                    ys.append(acc)
+
+        print(wrapper, len(xs), len(ys))
+        xs = np.array(xs)
+        ys = np.array(ys)
+        x_c = np.mean(xs)
+        x_lo, x_hi = np.quantile(xs, [0.25, 0.75])
+        y_c = np.mean(ys)
+        y_lo, y_hi = np.quantile(ys, [0.025, 0.975])
+
+        eb = axes[-1].errorbar(
+            x_c, y_c,
+            xerr=asym_err(x_c, x_lo, x_hi),
+            yerr=asym_err(y_c, y_lo, y_hi),
+            **style_dict[wrapper],
+            # fmt='o', capsize=0, elinewidth=2, label=wrapper
+        )
+        for line in eb[2]:
+            line.set_linestyle(style_dict[wrapper]['linestyle'])
+
+    axes[-1].set_xlabel('Predictive Entropy of\nMisclassified Test Instances')
+    axes[-1].set_ylabel('Test Set Acc (All Instances)')
+    axes[-1].grid(True)
+
+    # plt.xlabel('Predictive Entropy of Misclassified Test Instances')
+    # plt.ylabel('Test Set Acc (All Instances)')
+    # plt.grid(True)
+    # plt.legend(loc='lower center', ncols=3, bbox_to_anchor=(0.5, -0.4))
         
     handles, labels = axes[0].get_legend_handles_labels()
     fig.legend(
@@ -306,7 +378,7 @@ def plot_noisy_slake(id_df, ood_df,
         frameon=True
     )
     fig.suptitle(f'{model} on Noisy SLAKE OOD',y=0.95)
-    fig.subplots_adjust(bottom=0.15)
-    for ax in axes:
+    fig.subplots_adjust(bottom=0.2)
+    for ax in axes[0:2]:
        ax.yaxis.set_major_formatter(mticker.FormatStrFormatter('%.2f'))
     fig.savefig(save_path, bbox_inches='tight', dpi=300)

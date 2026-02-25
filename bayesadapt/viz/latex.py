@@ -88,7 +88,7 @@ def make_latex_ood_table(
     col_spec = "@{}" + ("c" * ncols) + "@{}"
 
     if caption is None:
-        caption = f"OOD Performance Comparison ({latex_escape(model)}, rank {rank})"
+        caption = f"OOD Performance Comparison for {latex_escape(model)}"
 
     lines: list[str] = []
     lines.append(r"\begin{table*}[h!]")
@@ -240,7 +240,7 @@ def make_latex_table(
     )
 
     if caption is None:
-        caption = f"Performance Comparison ({latex_escape(model)}, rank {rank})"
+        caption = f"In-Distribution Performance Comparison for {latex_escape(model)}"
 
     lines = []
     lines.append("\\begin{table*}[h!]")

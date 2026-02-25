@@ -47,6 +47,18 @@ def main(cfg):
     train_dataset.data = pool_dataset.data.filter(lambda x: x[id_key] in initial_train_ids)
     pool_dataset.data = pool_dataset.data.filter(lambda x: x[id_key] not in initial_train_ids)
 
+    #randomly select 10 instances from pool to use as valset
+    if cfg.use_val_set:
+        val_ids = np.random.choice(
+            pool_dataset.data[id_key], 
+            size=num_select,
+            replace=False
+        ).tolist()
+        val_dataset = instantiate(cfg.train_dataset, split='train')
+        val_dataset.data = pool_dataset.data.filter(lambda x: x[id_key] in val_ids)
+        pool_dataset.data = pool_dataset.data.filter(lambda x: x[id_key] not in val_ids)
+
+
     history = []
     for i in range(20):
         print(f"Round {i+1} of active learning, training on {len(train_dataset)} samples")
@@ -61,7 +73,6 @@ def main(cfg):
     
         
         pool_ids = pool_dataset.data[id_key]
-        #randomly sample 1000 from pool for efficiency, can be changed to all if desired
         if len(pool_ids) > 1000:
             sampled_pool_ids = np.random.choice(pool_ids, size=1000, replace=False).tolist()
             sampled_pool_dataset = instantiate(cfg.train_dataset, split='train')
@@ -70,7 +81,10 @@ def main(cfg):
             sampled_pool_dataset = pool_dataset
 
         trainer.update_dataloaders(train_dataset=train_dataset, test_dataset=sampled_pool_dataset)
-        trainer.train(save=False, use_wandb=False)
+        if cfg.use_val_set:
+            trainer.train(save=False, use_wandb=False, validation_dataset=val_dataset)
+        else:
+            trainer.train(save=False, use_wandb=False)
         pool_metrics, logits_dict = trainer.evaluate(save=False, verbose=False)
         
         logit_ids = list(logits_dict.keys())

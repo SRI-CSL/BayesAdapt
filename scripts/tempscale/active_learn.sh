@@ -9,6 +9,7 @@ python active_learn.py --multirun \
     hf_model=Qwen/Qwen3-VL-8B-Instruct \
     optim.max_train_steps=1000 \
     dataset@train_dataset=srqa \
+    use_val_set=True \
     collate_fn=vlm\
     seed=0,1,2,3\
     pbar=True \

@@ -17,6 +17,8 @@ pbar: true
 
 use_wandb: true
 
+use_val_set: False #TODO: active learning hack for tempscale
+
 
 samples:
   train:

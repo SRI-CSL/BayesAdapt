@@ -1,0 +1,2 @@
+_target_: bayesadapt.trainers.two_stage.TwoStageTrainer
+_recursive_: False
