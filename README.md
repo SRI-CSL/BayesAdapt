@@ -1,12 +1,6 @@
 # 🎒Bayesian Adaptation Gym
 Bayesian Adaptation Gym (BAG) is a library for the Bayesian adaptation of LLMs and VLMs.
 
-It also acts as the official repo for:<br>
-**Scalable Bayesian Low-Rank Adaptation of Large Language Models via Stochastic Variational Subspace Inference**<br>
-Colin Samplawski, Adam D. Cobb, Manoj Acharya, Ramneet Kaur, Susmit Jha <br>
-*Conference on Uncertainty in Artificial Intelligence, 2025*<br>
-[[📄 Paper](https://www.arxiv.org/abs/2506.21408)] [[🌐 OpenReview](https://openreview.net/forum?id=neqGuhC3zS)]
-
 ## ⚙️ Installation
 BAG uses ``uv`` to manage requirements. Start by installing ``uv`` as described by the [official documentation](https://docs.astral.sh/uv/getting-started/installation).
 
@@ -57,6 +51,12 @@ python train_and_evaluate.py \
 
 
 ## 📚 Citation
+It also acts as the official repo for:<br>
+**Scalable Bayesian Low-Rank Adaptation of Large Language Models via Stochastic Variational Subspace Inference**<br>
+Colin Samplawski, Adam D. Cobb, Manoj Acharya, Ramneet Kaur, Susmit Jha <br>
+*Conference on Uncertainty in Artificial Intelligence, 2025*<br>
+[[📄 Paper](https://www.arxiv.org/abs/2506.21408)] [[🌐 OpenReview](https://openreview.net/forum?id=neqGuhC3zS)]
+
 ```bib
 @InProceedings{samplawski2025scalable,
   title={Scalable Bayesian Low-Rank Adaptation of Large Language Models via Stochastic Variational Subspace Inference},
@@ -65,6 +65,7 @@ python train_and_evaluate.py \
   year={2025}
 }
 ```
+
 
 
 
