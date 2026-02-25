@@ -86,6 +86,47 @@ _target_: bayesadapt.lorawrappers.MCDropoutLoraWrapper
 ```
 Any wrapper specific args can also be included here so they are controllable at the CLI. 
 
+### Adding a new dataset
+Adding a new dataset is easy with BAG. We show ``bayesadapt/datasets/obqa.py`` as an example:
+```python
+from torch.utils.data import Dataset
+from datasets import load_dataset
+
+prompt_template = "Answer the multiple choice question below. Output the letter of your choice only.\n{question}\nChoices:\n"
+class OBQA(Dataset):
+    labels = ['A', 'B', 'C', 'D']
+    def __init__(self, split='train'):
+        if split not in ['train', 'validation', 'test']:
+            raise ValueError(f"Unknown split: {split}")
+        self.data = load_dataset("openbookqa", "main")[split]
+
+    def __len__(self):
+        return len(self.data)
+    
+    def __getitem__(self, idx):
+        item = self.data[idx]
+        label = self.labels.index(item['answerKey'])
+        
+        text_choices = item['choices']['text']
+        label_choices = item['choices']['label']
+
+        prompt = prompt_template.format(question=item['question_stem'])
+        for letter, choice in zip(label_choices, text_choices):
+            prompt += f"{letter}) {choice}\n"
+
+        return {
+            'prompt': prompt.strip(),
+            'label': label,
+            'question_id': item['id']
+        }
+```
+To fit into the train and eval pipelines of BAG we just need a dataset with a ``__getitem__`` method that returns a dict with a ``prompt`` string, ``label`` integer, and unique ``question_id`` field. For vision datasets it can futher have an ``image`` field with a PIL image.
+
+Then we again add a new config file ``conf/dataset/obqa.yaml``:
+```yaml
+_target_: bayesadapt.datasets.obqa.OBQA
+split: train
+```
 
 ## 📚 Citation
 It also acts as the official repo for:<br>
@@ -102,6 +143,7 @@ Colin Samplawski, Adam D. Cobb, Manoj Acharya, Ramneet Kaur, Susmit Jha <br>
   year={2025}
 }
 ```
+
 
 
 
