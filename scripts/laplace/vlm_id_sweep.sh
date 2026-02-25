@@ -6,9 +6,9 @@ python evaluate.py --multirun \
     optim=laplace \
     trainer=laplace \
     lora.load_mle_checkpoint=True \
-    hf_model=Qwen/Qwen3-0.6B,Qwen/Qwen3-1.7B,Qwen/Qwen3-4B,Qwen/Qwen3-8B,Qwen/Qwen3-14B \
-    dataset@train_dataset=winogrande_xs,winogrande_s,winogrande_m,winogrande_l,ARC-Easy,ARC-Challenge,obqa \
-    collate_fn=instruct\
-    seed=0,1,2,3\
+    hf_model=Qwen/Qwen3-VL-2B-Instruct,Qwen/Qwen3-VL-4B-Instruct,Qwen/Qwen3-VL-8B-Instruct \
+    dataset@train_dataset=slake,mmstar,MathVerse,srqa \
+    collate_fn=vlm\
+    seed=0,1,2,3 \
     pbar=True \
     gpu_id=0 
