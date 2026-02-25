@@ -6,15 +6,12 @@ python train_and_evaluate.py --multirun \
     +lora/wrapper=tfb \
     optim=binary_search \
     trainer=binary_search \
-    lora.config.r=8\
     optim.max_train_steps=5 \
     samples.test.backbone=10 \
-    n_eval_trials=1 \
     lora.load_mle_checkpoint=True \
     hf_model=Qwen/Qwen3-VL-2B-Instruct,Qwen/Qwen3-VL-4B-Instruct,Qwen/Qwen3-VL-8B-Instruct \
-    dataset@train_dataset=slake,mmstar,MathVerse \
+    dataset@train_dataset=slake,mmstar,MathVerse,srqa \
     collate_fn=vlm\
     seed=0,1,2,3\
-    overwrite=True \
-    pbar=False \
-    gpu_id=0 #ray will handle CUDA_VISIBLE_DEVICES so we just set gpu_id=0 here
+    pbar=True \
+    gpu_id=0
