@@ -3,7 +3,9 @@ Bayesian Adaptation Gym (BAG) is a library for the Bayesian adaptation of LLMs a
 
 🎉 BAG has been accepted as an **Oral Paper** at UAI 2026! 🎉
 
-[paper](https://colinsamplawski.ai/papers/2026/bag.pdf)
+[[paper]](https://arxiv.org/abs/2606.22188)
+
+
 
 ## ⚙️ Installation
 BAG uses ``uv`` to manage requirements. Start by installing ``uv`` as described by the [official documentation](https://docs.astral.sh/uv/getting-started/installation).
